@@ -1,68 +1,68 @@
 # HackYeah 2026 — Goldman Sachs: AI Control Layer
 
-## Opis wyzwania
+## Challenge description
 
-Zbuduj lekką i elastyczną warstwę kontroli dla systemów agentowej AI: agentów, usług MCP, modeli językowych i API. Rozwiązanie ma pomagać organizacjom chronić dane, egzekwować zabezpieczenia, zarządzać budżetami API i blokować ataki, nie spowalniając nadmiernie pracy deweloperów.
+Build a lightweight and flexible control layer for agentic AI systems: agents, MCP services, language models, and APIs. The solution should help organizations protect data, enforce safeguards, manage API budgets, and block attacks without excessively slowing developer workflows.
 
-Agenci AI mogą uzyskiwać nieuprawniony dostęp do zasobów, podszywać się pod innych aktorów, wykonywać nieodwracalne działania, ulegać prompt injection, ujawniać wrażliwe dane albo zużywać nadmierne zasoby w pętlach autonomicznych. Wyzwanie zakłada kontrolę interakcji w czasie rzeczywistym przez elastyczny pośrednik, łączący deterministyczne reguły z kontrolami semantycznymi opartymi na AI.
+AI agents may gain unauthorized access to resources, impersonate other actors, perform irreversible actions, fall victim to prompt injection, expose sensitive data, or consume excessive resources in autonomous loops. The challenge calls for real-time interaction control through a flexible intermediary that combines deterministic rules with AI-based semantic controls.
 
-## Oczekiwany rezultat
+## Expected outcome
 
-1. **Warstwa kontroli AI** — działający gateway, proxy, middleware, wrapper SDK lub równoważny komponent, który można włączyć do komunikacji aplikacja–agent, agent–agent, agent–MCP albo agent–model.
-2. **Przykładowa konfiguracja** — udokumentowany plik polityk pokazujący konfigurowalne poziomy rygoru, reguły budżetowe oraz ustawienia kontroli.
-3. **Interaktywny dashboard** — widok kontroli, ogólnej postawy bezpieczeństwa, zablokowanych zagrożeń i metryk, takich jak zużycie zasobów lub koszt.
-4. **Uruchamialny zestaw testów** — automatyczne przypadki pozytywne (dozwolone) i negatywne (blokowane lub redagowane), obejmujące m.in. limity budżetowe i ograniczanie exploitów.
-5. **Diagram architektury** oraz demonstracja działania warstwy.
+1. **AI Control Layer** — a working gateway, proxy, middleware, SDK wrapper, or equivalent component that can be inserted into application–agent, agent–agent, agent–MCP, or agent–model communication.
+2. **Sample configuration** — a documented policy file showing configurable strictness levels, budget rules, and control settings.
+3. **Interactive dashboard** — a view of controls, overall security posture, blocked threats, and metrics such as resource consumption or cost.
+4. **Runnable test suite** — automated positive (allowed) and negative (blocked or redacted) cases, including budget limits and exploit mitigation.
+5. **Architecture diagram** and demonstration of the layer in operation.
 
-Można zbudować własnego agenta lub użyć istniejącego. Ocenie podlega przede wszystkim warstwa kontroli.
+You may build your own agent or use an existing one. The control layer is the primary focus of evaluation.
 
-## Wymagania funkcjonalne
+## Functional requirements
 
-### Centralny silnik polityk
+### Central policy engine
 
-Jedno źródło konfiguracji powinno zarządzać kontrolami, progami wrażliwości, zachowaniem typu blokuj/redaguj, dozwolonymi modelami LLM oraz limitami zasobów i kosztów.
+A single source of configuration should manage controls, sensitivity thresholds, block/redact behavior, allowed LLM models, and resource and cost limits.
 
-### Kontrole deterministyczne i semantyczne
+### Deterministic and semantic controls
 
-- **Deterministyczne:** np. dopasowanie wzorców dla danych osobowych i sekretów, sprawdzanie uwierzytelnienia oraz uprawnień dostępu.
-- **Semantyczne:** tam, gdzie to zasadne, wykorzystanie modelu lub innej kontroli AI do oceny znaczenia interakcji.
+- **Deterministic:** for example, pattern matching for personal data and secrets, authentication checks, and access permissions.
+- **Semantic:** where appropriate, use a model or another AI control to assess the meaning of an interaction.
 
-### Budżety i zasoby
+### Budgets and resources
 
-Warstwa powinna umożliwiać egzekwowanie limitów dotyczących m.in. wydatków na komercyjne API, tokenów, czasu obliczeń oraz dostępu do zasobów.
+The layer should support enforcing limits such as commercial API spend, tokens, compute time, and resource access.
 
-### Ograniczanie znanych ataków
+### Mitigation of known attacks
 
-Należy rozważyć wykrywanie lub ograniczanie wzorców znanych exploitów infrastruktury AI, np. złośliwego wykonywania kodu, niebezpiecznej deserializacji i ataków na łańcuch dostaw modeli. Sygnatury mogą pochodzić z zewnętrznie zarządzanego źródła.
+Consider detecting or mitigating known exploit patterns in AI infrastructure, such as malicious code execution, unsafe deserialization, and model supply-chain attacks. Signatures may come from an externally managed source.
 
-### Raportowanie i audyt
+### Reporting and audit
 
-Rozwiązanie powinno udostępniać bieżące metryki, takie jak blokowane interakcje i wykorzystanie budżetu, oraz eksportowalne logi audytowe przydatne zespołom bezpieczeństwa.
+The solution should expose live metrics, such as blocked interactions and budget usage, as well as exportable audit logs useful to security teams.
 
-### Testy własne
+### Self-testing
 
-Zautomatyzowany zestaw testów ma sprawdzać zarówno prawidłowe, dozwolone zachowania, jak i przypadki, które powinny zostać zablokowane lub zredagowane.
+An automated test suite should check both valid, allowed behavior and cases that should be blocked or redacted.
 
-## Walidacja podczas oceny
+## Evaluation validation
 
-Sędziowie uruchomią dostarczony zestaw testów i mogą w czasie rzeczywistym zadawać systemowi nieprzygotowane wcześniej prompty. Mogą także zmieniać konfigurację lub źródła sygnatur, aby sprawdzić, jak warstwa reaguje na zmiany reguł, usunięcie kontroli albo zmianę progów. Należy być gotowym pokazać telemetrię wydajności, architekturę, dashboard i logi.
+Judges will run the provided test suite and may submit previously unseen prompts to the system in real time. They may also change the configuration or signature sources to see how the layer responds to rule changes, removal of a control, or changed thresholds. Be prepared to show performance telemetry, architecture, dashboard, and logs.
 
-## Technologia i dostępne zasoby
+## Technology and available resources
 
-Wybór stosu jest dowolny, m.in. Go, Rust lub Python; można też użyć istniejących narzędzi open source, z uwzględnieniem ich licencji. Dla agentów, modeli i aplikacji można wykorzystać istniejące komponenty.
+The stack is unrestricted, including Go, Rust, or Python; existing open-source tools may also be used, subject to their licenses. Existing components may be used for agents, models, and applications.
 
-Wyzwanie nie zapewnia gotowych zbiorów danych, płatnych API ani specjalnego sprzętu. Należy zaprojektować rozwiązanie możliwe do uruchomienia we własnym środowisku, np. z lokalnym modelem, i przygotować własne prompty testowe. Organizatorzy nie zapewniają subskrypcji płatnych usług takich jak OpenAI, Anthropic czy Copilot.
+The challenge does not provide ready-made datasets, paid APIs, or specialized hardware. Design a solution that can run in your own environment, for example with a local model, and prepare your own test prompts. The organizers do not provide subscriptions to paid services such as OpenAI, Anthropic, or Copilot.
 
-## Kryteria oceny
+## Evaluation criteria
 
-- Odporność rozwiązania i jakość zabezpieczeń — 30%
-- Architektura i wydajność — 20%
-- Raportowanie bezpieczeństwa — 20%
-- Kompletność zestawu testów własnych — 20% według regulaminu
-- Praktyczna możliwość wdrożenia i skalowalność — 10% według regulaminu
+- Solution resilience and security quality — 30%
+- Architecture and performance — 20%
+- Security reporting — 20%
+- Completeness of the self-testing suite — 20% according to the rules
+- Practical deployability and scalability — 10% according to the rules
 
-**Uwaga:** opis wyzwania podaje dla dwóch ostatnich kryteriów odpowiednio 15% i 15%, natomiast regulamin konkursu podaje 20% i 10%. Łączna waga w obu wersjach wynosi 100%; przed zgłoszeniem warto sprawdzić, która wersja obowiązuje.
+**Note:** the challenge description assigns 15% and 15% to the final two criteria, respectively, while the competition rules assign 20% and 10%. Both versions total 100%; check which version applies before submitting.
 
-## Zgłoszenie
+## Submission
 
-Regulamin przewiduje tytuł projektu, nazwę i skład zespołu, opis oraz prezentację PDF do 10 slajdów. Można dołączyć zrzuty ekranu, repozytorium kodu, demo i inne materiały. Udział indywidualny lub zespołowy, do 6 osób.
+The rules call for a project title, team name and members, description, and a PDF presentation of up to 10 slides. You may include screenshots, a code repository, a demo, and other materials. Individual or team participation is allowed, with up to 6 people.

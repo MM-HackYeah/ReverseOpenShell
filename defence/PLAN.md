@@ -1,71 +1,71 @@
-# Plan implementacji — Defence
+# Implementation Plan — Defence
 
-## Cel MVP
+## MVP goal
 
-Pokazać ingress authorization przed wykonaniem handlera: polityka jawnie dozwala akcje dla podpisanych źródeł, blokuje niedozwolone żądanie zanim dotrze do sandboxa, kwarantannuje źródło, a pozostałe źródła nadal dostarczają syntetyczne odczyty.
+Demonstrate ingress authorization before handler execution: policy explicitly allows actions for signed sources, blocks a disallowed request before it reaches the sandbox, quarantines the source, and allows other sources to continue delivering synthetic readings.
 
-## Etapy
+## Stages
 
-### 1. Zamknąć zakres i scenariusz
+### 1. Finalize scope and scenario
 
-- Endpoint `POST /sensor/{source}` dla dwóch źródeł demonstracyjnych.
-- Jeden typ zdarzenia telemetrycznego JSON oraz jeden kontrolowany handler.
-- Przypadek poprawny, błąd podpisu i poprawnie podpisane żądanie akcji spoza ingress allowlist.
-- Zapisać jawnie, że prototyp ogranicza ryzyko, ale nie jest certyfikowanym sandboxem ani pełną ochroną przed exploitami.
+- `POST /sensor/{source}` endpoint for two demonstration sources.
+- One type of JSON telemetry event and one controlled handler.
+- Valid case, signature failure, and correctly signed request for an action outside the ingress allowlist.
+- Explicitly state that the prototype reduces risk but is not a certified sandbox or complete exploit protection.
 
-**Warunek wyjścia:** scenariusz `sensor-a` → ingress deny → kwarantanna, podczas gdy `sensor-b` działa, jest spisany jako test.
+**Exit criterion:** the `sensor-a` → ingress deny → quarantine scenario, while `sensor-b` continues operating, is documented as a test.
 
-### 2. Ustalić interfejs wspólnego rdzenia
+### 2. Define the shared core interface
 
-- Przyjąć wspólny model żądania, decyzji (`allow`, `deny`, `redact`) i wpisu audytowego opisany w `common/README.md`.
-- Ingress policy ma być wersjonowanym plikiem YAML z domyślną decyzją `deny`, listą źródeł, sekretem env, sandboxem oraz dozwolonymi akcjami.
-- Handler ma otrzymywać wyłącznie zwalidowane dane potrzebne do obsługi zdarzenia.
+- Adopt the shared request, decision (`allow`, `deny`, `redact`), and audit-entry model described in `common/README.md`.
+- Ingress policy is a versioned YAML file with a default `deny` decision, source list, env secret, sandbox, and allowed actions.
+- The handler receives only validated data required to handle the event.
 
-**Warunek wyjścia:** przykładowa polityka Defence przechodzi walidację, a niepoprawna konfiguracja zatrzymuje start aplikacji.
+**Exit criterion:** the sample Defence policy passes validation, and invalid configuration stops application startup.
 
-### 3. Zaimplementować gateway Defence
+### 3. Implement the Defence gateway
 
-- Przyjmować zdarzenie i generować correlation ID.
-- Ograniczać rozmiar requestu oraz walidować pola i wartości liczbowe.
-- Sprawdzać podpis HMAC przypisany do źródła.
-- Autoryzować `action` względem centralnej polityki ingress **przed** wywołaniem OpenShell.
-- Nie wykonywać i nie kwarantannować źródła przy błędnym podpisie; przy prawidłowym podpisie i zabronionej akcji odpowiedzieć 403 i odnotować deny.
-- Każde źródło mapować na stały sandbox, bez możliwości wyboru sandboxa przez klienta.
-- Odrzucać nieznane, niepodpisane i quarantined źródła przed wykonaniem handlera.
+- Accept an event and generate a correlation ID.
+- Limit request size and validate fields and numeric values.
+- Verify the source-specific HMAC signature.
+- Authorize `action` against the central ingress policy **before** invoking OpenShell.
+- Do not execute or quarantine a source for an invalid signature; for a valid signature and forbidden action, return 403 and record the denial.
+- Map each source to a fixed sandbox, with no client ability to choose a sandbox.
+- Reject unknown, unsigned, and quarantined sources before handler execution.
 
-**Warunek wyjścia:** request nie może zmienić sandboxa przez payload ani dotrzeć do runnera bez dozwolonej akcji.
+**Exit criterion:** a request cannot change the sandbox through its payload or reach the runner without an allowed action.
 
-### 4. Dodać sandboxy i kontrolowaną próbę nadużycia
+### 4. Add sandboxes and a controlled abuse attempt
 
-- Przygotować osobny sandbox OpenShell na każde źródło (tworzony przed demo, nie per request).
-- Każda polityka ma filesystem read-only, minimalny dostęp do `/tmp`, `landlock.compatibility: hard_requirement` i domyślnie brak egress.
-- Nie udostępniać klientowi przełącznika symulującego atak ani nieautoryzowanego egressu jako przykładu ingress deny.
-- Po ingress deny oznaczać źródło jako quarantined w SQLite; inne źródła zachowują własny stan i sandbox.
+- Prepare a separate OpenShell sandbox for each source (created before the demo, not per request).
+- Each policy has a read-only filesystem, minimal `/tmp` access, `landlock.compatibility: hard_requirement`, and no egress by default.
+- Do not expose a client switch that simulates an attack or unauthorized egress as an example of ingress denial.
+- After ingress denial, mark the source quarantined in SQLite; other sources retain their own state and sandbox.
 
-**Warunek wyjścia:** test potwierdza, że zabroniona akcja nie wywołuje sandboxa, źródło nie przyjmuje kolejnych requestów, a drugie źródło dalej działa.
+**Exit criterion:** a test confirms that a forbidden action does not invoke the sandbox, that the source rejects subsequent requests, and that the other source continues working.
 
-### 5. Audyt, prezentacja i testy
+### 5. Audit, presentation, and tests
 
-- Zapisywać correlation ID, źródło, decyzję, poziom zaufania, powód, czas oraz stan kwarantanny; nie zapisywać body ani kluczy.
-- Udostępnić endpoint `/events` z audytem i stanem źródeł.
-- Dodać testy poprawnego odczytu, błędnego podpisu, ingress deny przed runnerem, kwarantanny i niezależności źródeł.
-- Przygotować skrypt porównawczy: identyczny syntetyczny exploit poza sandboxem oraz w sandboxie; dodatkowo signed attack przez ingress powoduje kwarantannę.
+- Record correlation ID, source, decision, trust level, reason, time, and quarantine state; do not record the body or keys.
+- Provide an `/events` endpoint with audit data and source state.
+- Add tests for valid reads, invalid signatures, ingress denial before the runner, quarantine, and source independence.
+- Prepare a comparison script: the same synthetic exploit outside the sandbox and inside it; additionally, a signed attack through ingress causes quarantine.
 
-**Warunek ukończenia:** demo działa powtarzalnie od czystego uruchomienia, testy przechodzą, a każda decyzja jest wyjaśnialna w logu.
+**Completion criterion:** the demo runs repeatably from a clean start, tests pass, and every decision is explainable in the log.
 
-## Kolejność prac
+## Work sequence
 
-Najpierw zamknąć przepływ gateway → weryfikacja HMAC → ingress policy → handler w przypisanym sandboxie → audyt. Następnie wykazać, że ingress deny kończy request przed wywołaniem sandboxa i że pozostałe źródło działa dalej. Wystarczy JSON endpoint `/events`, bez dashboardu graficznego.
+First complete the gateway → HMAC verification → ingress policy → handler in its assigned sandbox → audit flow. Then demonstrate that ingress denial ends the request before sandbox invocation and that the other source continues working. A JSON `/events` endpoint is sufficient; no graphical dashboard is needed.
 
-## Ryzyka i ograniczenia
+## Risks and limitations
 
-- Każdy sandbox działa na tym samym compute driverze/gatewayu co istniejący POC; nazwy i workspace są konfigurowalne.
-- Kwarantanna i audyt są w lokalnym SQLite; to pojedynczy lokalny store bez HA.
-- Exploit comparison ma jeden stały syntetyczny YAML payload, tymczasowy canary, lokalny kolektor i atrapę nastawy. Nie łączy się z realnymi systemami.
-- Ingress deny powinien być widoczny w audycie aplikacji; nie przedstawiać go jako zdarzenia `DENIED` OpenShell.
-- OpenShell jest drugą warstwą containmentu dla dozwolonego handlera, nie źródłem decyzji ingress.
-- Kontener współdzieli jądro; nie deklarować ochrony przed każdym kernel exploitem.
+- Every sandbox uses the same compute driver/gateway as the existing POC; names and workspace are configurable.
+- Quarantine and audit are stored in local SQLite; this is a single local store without HA.
+- Exploit comparison uses one fixed synthetic YAML payload, a temporary canary, a local collector, and a mock setpoint. It does not connect to real systems.
+- Ingress denial should be visible in the application audit; do not present it as an OpenShell `DENIED` event.
+- OpenShell is a second containment layer for the allowed handler, not the source of ingress decisions.
+- The container shares the kernel; do not claim protection against every kernel exploit.
 
-## Następny krok
+## Next step
 
-Pozostałe prace po MVP: wykonać benchmark w działającym OpenShell, rozszerzyć testy do wielu odrębnych bezpiecznych przypadków i zastąpić lokalny operator token właściwym identity/approval w docelowej integracji. Wodociąg/IEC 62443/MITRE/NIS2 są mapowane koncepcyjnie w `SCENARIO.md`, nie jako deklaracja zgodności. POC w `/Users/marcinbodych/Workspace/HackYeah2026/OpenShell` jest źródłem prawdy dla poleceń i zachowania runtime.
+Remaining work after the MVP: run the benchmark against a working OpenShell, expand tests to multiple distinct safe cases, and replace the local operator token with proper identity/approval in the target integration. Water utility/IEC 62443/MITRE/NIS2 are mapped conceptually in `SCENARIO.md`, not as a compliance claim. The POC at `/Users/marcinbodych/Workspace/HackYeah2026/OpenShell` is the source of truth for commands and runtime behavior.

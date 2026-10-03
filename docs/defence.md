@@ -1,42 +1,42 @@
 # HackYeah 2026 — Defence
 
-## Opis wyzwania
+## Challenge description
 
-Bezpieczeństwo zależy od umiejętności rozpoznawania zagrożeń, skutecznego reagowania i utrzymania kluczowych usług pod presją. Zakłócona usługa, zmanipulowana wiadomość lub przejęte konto mogą wpłynąć na organizację albo społeczność.
+Security depends on the ability to recognize threats, respond effectively, and keep essential services running under pressure. A disrupted service, manipulated message, or compromised account can affect an organization or community.
 
-Zadanie polega na stworzeniu rozwiązania wzmacniającego bezpieczeństwo i odporność. Należy wybrać konkretny problem, wskazać osoby lub organizacje, których dotyczy, oraz przygotować narzędzie, aplikację, system lub prototyp, który pomaga zapobiegać zagrożeniom, wykrywać je wcześniej albo ograniczać ich skutki.
+The task is to create a solution that strengthens security and resilience. Choose a specific problem, identify the people or organizations affected, and prepare a tool, application, system, or prototype that helps prevent threats, detect them earlier, or limit their impact.
 
-Przykładowe kierunki:
+Example directions:
 
-- identyfikowanie słabych punktów i ustalanie priorytetów ochrony w mniejszych organizacjach;
-- weryfikacja podejrzanych wiadomości, treści lub źródeł informacji;
-- koordynacja i wymiana informacji w sytuacjach kryzysowych;
-- mapowanie zależności między usługami i identyfikowanie punktów awarii;
-- upraszczanie procedur bezpieczeństwa.
+- identifying weaknesses and prioritizing protection in smaller organizations;
+- verifying suspicious messages, content, or information sources;
+- coordinating and sharing information during crises;
+- mapping dependencies between services and identifying failure points;
+- simplifying security procedures.
 
-To przykłady, a nie zamknięta lista. Inne podejścia są dopuszczalne, o ile odpowiadają na potrzebę z obszaru obrony lub bezpieczeństwa.
+These are examples, not an exhaustive list. Other approaches are acceptable if they address a defence or security need.
 
-## Oczekiwania wobec rozwiązania
+## Solution expectations
 
-Projekt powinien:
+The project should:
 
-1. skupiać się na realistycznym scenariuszu i jasno określonej grupie użytkowników;
-2. pokazywać, jak wspiera osoby zaangażowane w przygotowanie lub reakcję;
-3. uwzględniać niepełne informacje, ograniczone zasoby albo niedostępność usług;
-4. demonstrować konkretną poprawę przygotowania, reagowania lub ciągłości działania.
+1. focus on a realistic scenario and clearly defined user group;
+2. show how it supports people involved in preparation or response;
+3. account for incomplete information, limited resources, or service unavailability;
+4. demonstrate a concrete improvement in preparedness, response, or continuity.
 
-## Kryteria oceny
+## Evaluation criteria
 
-- Pomysł i innowacyjność — 30%
-- Dopasowanie do kategorii — 20%
-- Praktyczne zastosowanie i użyteczność — 20%
+- Idea and innovation — 30%
+- Fit with the category — 20%
+- Practical application and usefulness — 20%
 - Design — 20%
-- Kompletność i wartość wdrożeniowa — 10%
+- Completeness and implementation value — 10%
 
-## Zgłoszenie
+## Submission
 
-Wymagane są: tytuł projektu, nazwa zespołu, skład zespołu, opis projektu oraz prezentacja PDF licząca maksymalnie 10 slajdów. Można dołączyć m.in. zrzuty ekranu, repozytorium kodu, link do demonstracji i materiały graficzne. Zgłoszenie może być po polsku lub angielsku.
+Required: project title, team name, team members, project description, and a PDF presentation of no more than 10 slides. You may also include screenshots, a code repository, a demo link, and graphic materials. Submissions may be in Polish or English.
 
-## Zasady użycia zasobów i AI
+## Use of resources and AI
 
-Można korzystać z istniejących repozytoriów, materiałów i narzędzi, pod warunkiem prawidłowego wskazania źródeł. Użycie AI podczas pracy jest dozwolone. Zespół odpowiada za oryginalność, działanie, bezpieczeństwo oraz zgodność licencyjną i prawną rozwiązania. Istotne użycie AI i zewnętrznych zasobów należy ujawnić; zespół powinien rozumieć i umieć wyjaśnić rozwiązanie.
+Existing repositories, materials, and tools may be used, provided sources are properly cited. AI use during development is permitted. The team is responsible for the originality, operation, security, and licensing and legal compliance of the solution. Significant use of AI and external resources must be disclosed; the team should understand and be able to explain the solution.

@@ -1,52 +1,52 @@
 # Goldman Sachs AI Control Layer — MVP
 
-## Problem i użytkownik
+## Problem and user
 
-Agent AI może zostać nakłoniony do użycia niebezpiecznego narzędzia, ujawnienia danych albo przekroczenia budżetu. Użytkownikami są zespoły developerskie integrujące agentów, a także zespoły bezpieczeństwa monitorujące ich działanie.
+An AI agent can be tricked into using a dangerous tool, exposing data, or exceeding its budget. Users include development teams integrating agents and security teams monitoring their behavior.
 
-## Zakres MVP
+## MVP scope
 
-- Jeden demonstracyjny agent korzystający z lokalnego modelu lub deterministycznego mocka.
-- Proxy przechwytujące każde wywołanie narzędzia i odpowiedź.
-- Centralna konfiguracja YAML z listą dozwolonych narzędzi, regułami blokowania/redakcji oraz limitami wywołań i budżetu.
-- Deterministyczne kontrole: walidacja schematu, allowlista narzędzi i endpointów, wykrywanie przykładowego sekretu.
-- Jeden izolowany runner dla ryzykownej akcji, np. przetworzenia pliku w przygotowanym katalogu.
-- Audyt i prosty dashboard: dozwolone, zablokowane i zredagowane interakcje, przyczyny decyzji oraz użycie limitów.
-- Automatyczny zestaw testów pozytywnych i negatywnych.
-- Przeładowanie polityki w czasie działania.
+- One demonstration agent using a local model or deterministic mock.
+- A proxy that intercepts every tool call and response.
+- Central YAML configuration with an allowlist of tools, block/redact rules, and call and budget limits.
+- Deterministic controls: schema validation, tool and endpoint allowlists, and detection of a sample secret.
+- One isolated runner for a risky action, such as processing a file in a prepared directory.
+- Audit and a simple dashboard: allowed, blocked, and redacted interactions, reasons for decisions, and limit usage.
+- An automated positive and negative test suite.
+- Policy reload at runtime.
 
-Kontrolę semantyczną można dodać jako opcjonalny element, ale nie powinna być jedyną barierą bezpieczeństwa. Bezpłatny lokalny model lub mock pozwala uniknąć zależności od płatnego API.
+Semantic control can be added as an optional feature, but it should not be the only security barrier. A free local model or mock avoids dependence on a paid API.
 
-## Scenariusz demonstracyjny
+## Demonstration scenario
 
-1. Agent wykonuje dozwolone narzędzie, np. wyszukuje informację w katalogu demonstracyjnym.
-2. Złośliwa instrukcja w danych wejściowych próbuje skłonić agenta do odczytania sekretu albo wysłania danych do niedozwolonego hosta.
-3. Policy Engine odrzuca niedozwolone narzędzie lub redaguje sekret; runner ogranicza dostęp procesu do plików i sieci.
-4. Dashboard pokazuje decyzję, regułę, zdarzenie audytowe i stan limitu budżetowego.
-5. Zmień konfigurację, np. zablokuj wcześniej dozwolone narzędzie, i pokaż efekt na kolejnym żądaniu.
+1. The agent uses an allowed tool, such as searching for information in a demo directory.
+2. A malicious instruction in the input attempts to persuade the agent to read a secret or send data to a disallowed host.
+3. The Policy Engine rejects the disallowed tool or redacts the secret; the runner restricts the process's file and network access.
+4. The dashboard shows the decision, rule, audit event, and budget-limit status.
+5. Change the configuration, for example by blocking a previously allowed tool, and show the effect on the next request.
 
-## Minimalny zestaw testów
+## Minimal test suite
 
-- Dozwolone narzędzie i poprawne wejście → wykonanie.
-- Nieznane narzędzie → blokada.
-- Sekret w danych → redakcja lub blokada zgodnie z polityką.
-- Przekroczony limit wywołań/budżetu → blokada.
-- Próba dostępu runnera do niedozwolonego pliku lub hosta → brak dostępu i wpis audytowy.
-- Zmiana konfiguracji → nowa decyzja bez restartu, jeśli taki tryb jest zaimplementowany.
+- Allowed tool and valid input → execution.
+- Unknown tool → blocked.
+- Secret in data → redacted or blocked according to policy.
+- Call/budget limit exceeded → blocked.
+- Runner attempts to access a disallowed file or host → access denied and audit entry recorded.
+- Configuration change → new decision without restart, if that mode is implemented.
 
-## Kryteria ukończenia
+## Completion criteria
 
-- Działa pełny przepływ od promptu do kontrolowanego wywołania narzędzia.
-- Polityki są centralne, widoczne i możliwe do zmiany.
-- Testy zawierają przypadki pozytywne i negatywne.
-- Dashboard/logi prezentują decyzję i jej uzasadnienie.
-- Limity budżetu lub zasobów są faktycznie egzekwowane, a nie tylko wyświetlane.
-- Całość można uruchomić bez płatnych usług.
+- The full flow from prompt to controlled tool call works.
+- Policies are centralized, visible, and changeable.
+- Tests include positive and negative cases.
+- Dashboard/logs show the decision and its rationale.
+- Budget or resource limits are actually enforced, not merely displayed.
+- The whole system can run without paid services.
 
-## Poza zakresem
+## Out of scope
 
-Pełna zgodność z każdym frameworkiem agentowym, ochrona przed wszystkimi prompt injection, produkcyjna usługa multi-tenant, automatyczne pozyskiwanie sygnatur z wielu źródeł i rozbudowany system zarządzania kluczami.
+Full compatibility with every agent framework, protection against all prompt injection, a production multi-tenant service, automatic signature acquisition from multiple sources, and an elaborate key-management system.
 
-## Prezentacja
+## Presentation
 
-Pokaż działający dozwolony przepływ, próbę niebezpiecznego wywołania, blokadę lub redakcję, wpis audytowy, wykorzystanie budżetu oraz zmianę zachowania po edycji polityki. Przygotuj testy do uruchomienia przez oceniających i wskaż ograniczenia prototypu.
+Show a working allowed flow, an attempted unsafe call, a block or redaction, an audit entry, budget usage, and changed behavior after editing the policy. Prepare tests for evaluators to run and describe the prototype's limitations.

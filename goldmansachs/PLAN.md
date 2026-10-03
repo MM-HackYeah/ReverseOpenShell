@@ -1,84 +1,84 @@
-# Plan implementacji — Goldman Sachs AI Control Layer
+# Implementation Plan — Goldman Sachs AI Control Layer
 
-## Cel MVP
+## MVP goal
 
-Zademonstrować warstwę pośredniczącą, która kontroluje wywołania narzędzi agenta, egzekwuje polityki centralne, ogranicza zasoby i udostępnia testowalne raportowanie. Izolowany runner i audyt mają korzystać ze wspólnego rdzenia; zakres agentowy i budżetowy jest specyficzny dla tego wyzwania.
+Demonstrate an intermediary layer that controls agent tool calls, enforces central policies, limits resources, and provides testable reporting. The isolated runner and audit should use the shared core; the agent and budget scope is specific to this challenge.
 
-## Zależność od wspólnego rdzenia
+## Shared core dependency
 
-Plan zakłada działający kontrakt polityk, decyzji (`allow`, `deny`, `redact`), izolowanego wykonania i audytu z `common/README.md` oraz pionowy wycinek Defence opisany w `defence/PLAN.md`. Nie należy czekać na rozbudowany produkt Defence: wystarczy stabilny interfejs i testy kontraktowe.
+This plan assumes a working contract for policies, decisions (`allow`, `deny`, `redact`), isolated execution, and audit from `common/README.md`, as well as the Defence vertical slice described in `defence/PLAN.md`. Do not wait for an elaborate Defence product: a stable interface and contract tests are sufficient.
 
-## Etapy
+## Stages
 
-### 1. Zdefiniować minimalny przepływ agenta
+### 1. Define the minimal agent flow
 
-- Jeden agent demonstracyjny oraz dwa narzędzia: jedno bezpieczne (np. wyszukanie w katalogu demo) i jedno uprzywilejowane, które ma wymagać jawnej reguły.
-- Agent i narzędzia działają lokalnie lub są deterministycznie mockowane; brak wymagania płatnego API.
-- Każde wywołanie narzędzia przechodzi przez Control Layer, bez bezpośredniego dostępu agenta do narzędzia.
+- One demonstration agent and two tools: one safe (e.g. search a demo directory) and one privileged, requiring an explicit rule.
+- The agent and tools run locally or are deterministically mocked; no paid API is required.
+- Every tool call passes through the Control Layer, with no direct agent access to the tool.
 
-**Warunek wyjścia:** architektura pokazuje, że nie ma ścieżki omijającej policy engine.
+**Exit criterion:** the architecture shows that there is no path around the policy engine.
 
-### 2. Rozszerzyć model polityk
+### 2. Extend the policy model
 
-- Zdefiniować reguły dla nazw narzędzi, parametrów, modeli dozwolonych i endpointów sieciowych.
-- Dodać limity wywołań oraz prosty limit kosztu/tokenów lub jednostek demonstracyjnych.
-- Wprowadzić zachowania `allow`, `deny` i `redact` oraz bezpieczną decyzję domyślną.
-- Obsłużyć błędną konfigurację i zmianę polityki w czasie działania.
+- Define rules for tool names, parameters, allowed models, and network endpoints.
+- Add call limits and a simple cost/token limit or demonstration units.
+- Introduce `allow`, `deny`, and `redact` behavior and a safe default decision.
+- Handle invalid configuration and policy changes at runtime.
 
-**Warunek wyjścia:** testy dowodzą, że zmiana polityki zmienia decyzje kolejnych wywołań.
+**Exit criterion:** tests demonstrate that a policy change alters decisions for subsequent calls.
 
-### 3. Wpiąć agenta i kontrolę narzędzi
+### 3. Integrate the agent and tool controls
 
-- Przechwytywać żądanie narzędzia przed wykonaniem.
-- Walidować schemat i parametry, stosować allowlisty oraz reguły wykrywania demonstracyjnego sekretu.
-- Uruchamiać zatwierdzone akcje przez wspólny runner, z ograniczonym dostępem do plików i sieci.
-- Zwracać agentowi kontrolowany wynik lub bezpieczny komunikat o odmowie.
+- Intercept a tool request before execution.
+- Validate schema and parameters, apply allowlists, and detect the demonstration secret.
+- Run approved actions through the shared runner, with restricted file and network access.
+- Return a controlled result or safe denial message to the agent.
 
-**Warunek wyjścia:** agent może wykonać dozwolone narzędzie, ale nie może ominąć blokady przez zmianę treści promptu.
+**Exit criterion:** the agent can use an allowed tool but cannot bypass a block by changing prompt content.
 
-### 4. Dodać budżet, audyt i dashboard
+### 4. Add budget, audit, and dashboard
 
-- Egzekwować licznik wywołań i limit zasobów/kosztu, a nie tylko wyświetlać ich wartości.
-- Rejestrować użytkownika/aktora demonstracyjnego, narzędzie, decyzję, przyczynę, czas, wynik oraz zużycie limitu.
-- Pokazać ostatnie interakcje, zablokowane próby, wykorzystanie limitów i stan polityk w prostym dashboardzie.
-- Nie logować sekretów w postaci jawnej; redagować wrażliwe wartości.
+- Enforce a call counter and resource/cost limit, rather than merely displaying their values.
+- Record the demonstration user/actor, tool, decision, reason, time, result, and limit usage.
+- Show recent interactions, blocked attempts, limit usage, and policy status in a simple dashboard.
+- Do not log secrets in plaintext; redact sensitive values.
 
-**Warunek wyjścia:** przekroczenie limitu blokuje kolejne działanie i jest widoczne w audycie.
+**Exit criterion:** exceeding a limit blocks the next action and is visible in the audit.
 
-### 5. Przygotować samodzielnie uruchamialne testy
+### 5. Prepare self-contained runnable tests
 
-- Dozwolone narzędzie z poprawnymi parametrami.
-- Nieznane lub zablokowane narzędzie.
-- Sekret w wejściu lub wyjściu: redakcja albo blokada zgodnie z konfiguracją.
-- Przekroczony budżet/licznik.
-- Próba dostępu runnera do niedozwolonego pliku lub hosta.
-- Zmiana polityki w trakcie pracy.
+- Allowed tool with valid parameters.
+- Unknown or blocked tool.
+- Secret in input or output: redact or block according to configuration.
+- Exceeded budget/counter.
+- Runner attempt to access a disallowed file or host.
+- Policy change while running.
 
-**Warunek ukończenia:** test suite uruchamia się jedną udokumentowaną komendą, zawiera przypadki pozytywne i negatywne i nie wymaga płatnego API.
+**Completion criterion:** the test suite runs with one documented command, includes positive and negative cases, and requires no paid API.
 
-### 6. Próba oceny i demo
+### 6. Evaluation and demo rehearsal
 
-- Uruchomić testy przed prezentacją i przygotować resetowalny stan demo.
-- Pokazać legalne wywołanie, prompt injection lub próbę nadużycia, blokadę/redakcję, zdarzenie audytowe i zadziałanie limitu.
-- Zmienić konfigurację podczas działania i powtórzyć wywołanie.
-- Przygotować krótką informację o ograniczeniach, wydajności i zachowaniu przy błędzie modelu lub narzędzia.
+- Run tests before the presentation and prepare a resettable demo state.
+- Show a legitimate call, prompt injection or abuse attempt, block/redaction, audit event, and limit enforcement.
+- Change configuration while running and repeat the call.
+- Prepare a short statement on limitations, performance, and behavior when the model or tool fails.
 
-## Kryteria ukończenia
+## Completion criteria
 
-- Centralna konfiguracja zarządza politykami i limitami.
-- Każde wywołanie narzędzia przechodzi przez warstwę kontroli.
-- Dostępne są kontrole deterministyczne oraz co najmniej jeden pokazany mechanizm semantyczny, jeśli można go uruchomić lokalnie i niezawodnie.
-- Budżety i ograniczenia wykonania są egzekwowane.
-- Dashboard/logi prezentują zdarzenia dla zespołów bezpieczeństwa.
-- Automatyczne testy pozytywne i negatywne przechodzą.
+- Central configuration manages policies and limits.
+- Every tool call passes through the control layer.
+- Deterministic controls are available, as well as at least one demonstrated semantic mechanism if it can run locally and reliably.
+- Budgets and execution constraints are enforced.
+- Dashboard/logs present events for security teams.
+- Automated positive and negative tests pass.
 
-## Ryzyka i ograniczenia
+## Risks and limitations
 
-- Kontrola semantyczna AI jest probabilistyczna; nie może być jedyną blokadą.
-- Agentowy framework nie powinien być przedmiotem projektu; oceniana jest warstwa kontroli.
-- Koszt/tokeny w demie mogą być jednostkami symulowanymi, ale muszą być jawnie oznaczone jako takie.
-- Szczegółowy opis wyzwania i regulamin podają różne wagi dwóch kryteriów końcowych. Warto potwierdzić obowiązujący podział u organizatora.
+- AI semantic control is probabilistic; it cannot be the only block.
+- The agent framework should not be the project; the control layer is what is evaluated.
+- Demo cost/tokens may be simulated units, but must be clearly labeled as such.
+- The detailed challenge description and rules give different weights for the final two criteria. Confirm the applicable distribution with the organizer.
 
-## Kolejność względem Defence
+## Sequence relative to Defence
 
-Zacząć po ustabilizowaniu wspólnych interfejsów i demonstracji izolowanego wykonania w Defence. Ponownie wykorzystać runner, decyzje polityk i audyt, ale nie próbować przerabiać całego rozwiązania Defence na platformę agentową przed działającym prototypem.
+Start after shared interfaces and the isolated-execution demonstration in Defence are stable. Reuse the runner, policy decisions, and audit, but do not try to turn the entire Defence solution into an agent platform before a working prototype exists.

@@ -1,38 +1,38 @@
-# Scenariusz demonstracyjny: wodociąg
+# Demonstration Scenario: Water Utility
 
-## Założony przepływ
+## Assumed flow
 
-Operator przedsiębiorstwa wodociągowego odbiera raporty telemetryczne od zewnętrznego dostawcy. Adapter dostawcy parsuje dokument YAML, a wynik może zostać wykorzystany przez wewnętrzny proces telemetryczny. Atakujący wysyła poprawnie podpisany `telemetry.read` z dokumentem, który wykorzystuje celowo podatny parser.
+The operator of a water utility receives telemetry reports from an external vendor. The vendor adapter parses a YAML document, and the result may be consumed by an internal telemetry process. An attacker sends a correctly signed `telemetry.read` request with a document that exploits the deliberately vulnerable parser.
 
-Demo używa wyłącznie fikcyjnego źródła `sensor-a`, tekstu `SYNTHETIC-CANARY-NOT-A-REAL-SECRET`, lokalnego kolektora i pliku JSON udającego nastawę przepływu. Nie łączy się z PLC, SCADA, siecią OT ani prawdziwym systemem wodociągowym.
+The demo uses only a fictitious `sensor-a` source, the text `SYNTHETIC-CANARY-NOT-A-REAL-SECRET`, a local collector, and a JSON file that represents a flow setpoint. It does not connect to a PLC, SCADA, OT network, or real water utility system.
 
-## Odniesienie do IEC 62443
+## IEC 62443 reference
 
-To jest szkic architektury zgodny z pojęciami stref i kanałów komunikacyjnych (zones and conduits), nie ocena zgodności ani projekt docelowy.
+This is an architectural sketch using the concepts of zones and conduits, not a compliance assessment or a target design.
 
-| Element demonstracji | Przykładowa rola w podziale na strefy | Znaczenie ograniczenia |
+| Demonstration element | Example role in zone model | Meaning of the control |
 |---|---|---|
-| Webhook i weryfikacja HMAC | Strefa DMZ/edge przyjmująca dane zewnętrzne | Uwierzytelnienie źródła nie oznacza zaufania do treści dokumentu |
-| Parser vendor YAML w OpenShell | Izolowany workload pośredni, nie strefa sterowania | Ogranicza skutki kompromitacji do procesu i jego jawnie dostępnych zasobów |
-| Syntetyczny plik nastawy | Atrapa zasobu w chronionej strefie procesu | Polityka ma zablokować dostęp; w demonstracji nie ma rzeczywistego zasobu OT |
-| Lokalny kolektor | Atrapa niedozwolonego kanału wychodzącego | Egress ma zostać odrzucony; sprawdź zdarzenie polityki OpenShell |
-| Osobny sandbox per źródło | Granica izolacji pomiędzy workloadami | Incydent źródła A nie powinien przerwać obsługi źródła B |
+| Webhook and HMAC verification | DMZ/edge zone receiving external data | Source authentication does not mean the document contents are trusted |
+| Vendor YAML parser in OpenShell | Isolated intermediate workload, not a control zone | Limits the effects of compromise to the process and its explicitly available resources |
+| Synthetic setpoint file | Mock resource in a protected process zone | Policy should block access; the demo contains no actual OT resource |
+| Local collector | Mock unauthorized outbound channel | Egress should be denied; check the OpenShell policy event |
+| Separate sandbox per source | Isolation boundary between workloads | An incident affecting source A should not interrupt source B |
 
-IEC 62443-3-2 opisuje definiowanie systemu będącego przedmiotem oceny, jego podział na strefy i kanały oraz ocenę ryzyka. Sam sandbox ani ta tabela nie ustanawiają stref OT, Security Level, ani zgodności z serią IEC 62443. W rzeczywistym wdrożeniu operator musiałby zidentyfikować aktywa, zależności, kanały oraz wymagania bezpieczeństwa dla konkretnego systemu.
+IEC 62443-3-2 describes defining the system under consideration, dividing it into zones and conduits, and assessing risk. A sandbox or this table alone does not establish OT zones, a Security Level, or compliance with the IEC 62443 series. In a real deployment, the operator would need to identify assets, dependencies, channels, and security requirements for the specific system.
 
-## Odniesienie do MITRE ATT&CK for ICS
+## MITRE ATT&CK for ICS reference
 
-- **T0836, Modify Parameter:** demonstracyjny payload próbuje zmienić wartość w pliku JSON udającym nastawę. To odpowiada próbie modyfikacji parametru na poziomie koncepcji, ale nie zmienia parametru urządzenia przemysłowego.
-- **T0831, Manipulation of Control:** byłoby istotne dopiero, gdyby dostęp do sterowania pozwalał wpłynąć na proces fizyczny. Demo nie wykonuje takiego działania i nie dowodzi ochrony przed manipulacją procesu.
-- Scenariusz dodatkowo pokazuje ryzyko wykonania kodu przez parser niezaufanego wejścia; nie przypisuje temu konkretnej techniki ICS bez dowodu, że technika ta pasuje do rzeczywistej ścieżki ataku.
+- **T0836, Modify Parameter:** the demonstration payload attempts to change a value in a JSON file representing a setpoint. This conceptually corresponds to an attempted parameter modification, but does not modify an industrial device parameter.
+- **T0831, Manipulation of Control:** this would be relevant only if access to control could affect the physical process. The demo takes no such action and does not demonstrate protection against process manipulation.
+- The scenario also demonstrates the risk of code execution by a parser processing untrusted input; it does not map this to a specific ICS technique without evidence that the technique fits a real attack path.
 
-## Odniesienie do NIS2, Article 21
+## NIS2, Article 21 reference
 
-Demo ilustruje ograniczony zestaw tematów z Article 21 risk-management measures: obsługę incydentu, bezpieczeństwo łańcucha dostaw, kontrolę dostępu i ciągłość działania. Podpis HMAC identyfikuje źródło, allowlista ingress ogranicza dozwoloną akcję, sandbox ogranicza skutki błędu parsera, a kwarantanna jednego źródła ma pozostawić drugie aktywne.
+The demo illustrates a limited set of topics from Article 21 risk-management measures: incident handling, supply-chain security, access control, and business continuity. HMAC identifies the source, the ingress allowlist limits the permitted action, the sandbox limits the impact of a parser flaw, and quarantine of one source is intended to leave the other active.
 
-To nie jest ocena ryzyka organizacji, wdrożenie wszystkich wymaganych środków, certyfikacja ani opinia prawna. Zakres obowiązków zależy od podmiotu, sektora, krajowej implementacji dyrektywy i kontekstu operacyjnego. Lokalny token operatora i plik SQLite są tylko demonstracyjnymi mechanizmami, a nie odpowiednikiem zarządzania tożsamością, wysokiej dostępności czy procesu reagowania organizacji.
+This is not an organizational risk assessment, implementation of all required measures, certification, or legal opinion. The scope of obligations depends on the entity, sector, national implementation of the directive, and operational context. The local operator token and SQLite file are demonstration mechanisms only, not equivalents of identity management, high availability, or an organizational response process.
 
-## Źródła
+## Sources
 
 - [IEC 62443-3-2:2020, official IEC catalogue](https://webstore.iec.ch/en/publication/30727)
 - [MITRE ATT&CK for ICS: T0836 Modify Parameter](https://attack.mitre.org/techniques/T0836/)

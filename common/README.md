@@ -1,26 +1,26 @@
-# Wspólny rdzeń MVP
+# Shared MVP Core
 
-## Cel
+## Goal
 
-Współdzielona warstwa egzekwowania polityk i ograniczania skutków niebezpiecznego wejścia. Ten rdzeń obsługuje dwa scenariusze: ochronę handlera webhooków (Defence) oraz kontrolę wywołań narzędzi przez agenta AI (Goldman Sachs).
+A shared layer for policy enforcement and containment of dangerous input. This core supports two scenarios: protecting a webhook handler (Defence) and controlling tool calls by an AI agent (Goldman Sachs).
 
-## Zakres demonstracyjny
+## Demonstration scope
 
 ```text
-Klient → Gateway → Policy Engine → Isolated Runner → Wynik
+Client → Gateway → Policy Engine → Isolated Runner → Result
                             └────→ Audit Log / Metrics
 ```
 
-MVP powinno zawierać:
+The MVP should include:
 
-1. Gateway HTTP przyjmujący żądania i przypisujący im identyfikator korelacyjny.
-2. Policy Engine czytający konfigurację YAML i zwracający decyzję `allow`, `deny` lub `redact`.
-3. Isolated Runner uruchamiający wybrany handler z ograniczonymi uprawnieniami.
-4. Audit Log zapisujący decyzję, jej przyczynę, nazwę reguły, czas i wynik wykonania.
-5. Prosty interfejs lub endpointy do przeglądania zdarzeń i metryk.
-6. Testy automatyczne dla dozwolonych i blokowanych przypadków.
+1. An HTTP gateway that accepts requests and assigns them a correlation ID.
+2. A Policy Engine that reads YAML configuration and returns an `allow`, `deny`, or `redact` decision.
+3. An Isolated Runner that runs a selected handler with restricted permissions.
+4. An Audit Log recording the decision, reason, rule name, time, and execution result.
+5. A simple interface or endpoints for viewing events and metrics.
+6. Automated tests for allowed and blocked cases.
 
-## Minimalny model polityki
+## Minimal policy model
 
 ```yaml
 version: 1
@@ -42,24 +42,24 @@ rules:
     match: "DEMO_SECRET"
 ```
 
-To przykładowa konfiguracja do demonstracji, nie gotowy format produkcyjny. Zachowanie `default_action` i pierwszeństwo reguł powinny być jednoznaczne i testowane.
+This is a sample configuration for demonstration, not a production-ready format. The behavior of `default_action` and rule precedence must be unambiguous and tested.
 
-## Granice MVP
+## MVP boundaries
 
-- Jeden gateway i jeden demonstracyjny handler/agent.
-- Jawnie określona lista funkcji; bez obietnicy pełnej ochrony przed exploitami.
-- Brak założenia, że kontrola semantyczna AI jest niezawodna. Decyzje bezpieczeństwa w demie powinny dać się odtworzyć testami.
-- Bez rozbudowanego systemu multi-tenant, zarządzania kluczami produkcyjnymi i wysokiej dostępności.
+- One gateway and one demonstration handler/agent.
+- An explicitly defined set of functions; no promise of complete exploit protection.
+- No assumption that AI semantic controls are reliable. Security decisions in the demo should be reproducible through tests.
+- No elaborate multi-tenant system, production key management, or high availability.
 
-## Warunki ukończenia
+## Completion criteria
 
-- Można uruchomić całość jedną udokumentowaną komendą lub zestawem poleceń.
-- Zmiana polityki wpływa na kolejne żądania bez przebudowy komponentów.
-- Niedozwolone żądanie nie dociera do handlera.
-- Runner nie ma dostępu do hostowych sekretów ani niezatwierdzonej sieci.
-- Każda decyzja ma wpis audytowy z powodem.
-- Testy pokrywają co najmniej po jednym przypadku `allow`, `deny` i `redact`.
+- The whole system can be started with one documented command or set of commands.
+- A policy change affects subsequent requests without rebuilding components.
+- A disallowed request does not reach the handler.
+- The runner cannot access host secrets or unapproved networks.
+- Every decision has an audit entry with a reason.
+- Tests cover at least one `allow`, `deny`, and `redact` case each.
 
-## Demonstracja
+## Demonstration
 
-Pokaż najpierw dozwolone żądanie, następnie żądanie naruszające politykę, a na końcu wpisy audytowe i metryki. Nie prezentuj mockowanych zdarzeń jako wyniku rzeczywistego egzekwowania.
+First show an allowed request, then a request that violates policy, and finally the audit entries and metrics. Do not present mocked events as the result of actual enforcement.

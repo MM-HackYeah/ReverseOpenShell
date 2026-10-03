@@ -1,60 +1,70 @@
-# Defence — MVP: ingress policy i containment exploita
+# Defence — MVP: ingress policy and exploit containment
 
-## Problem i użytkownik
+## Problem and user
 
-Operator infrastruktury krytycznej przyjmuje dane od zewnętrznych dostawców, np. zdarzenia z czujników. Błąd lub przejęcie handlera jednego źródła nie powinny umożliwić dostępu do sekretów ani zatrzymać obsługi pozostałych źródeł.
+An operator of critical infrastructure receives data from external vendors, such as sensor events. An error or compromise of one source's handler should not provide access to secrets or stop processing for other sources.
 
-## Przepływ
+## Real threat and demonstration boundaries
+
+Imagine an integration accepting a signed `telemetry.read` together with a device profile in YAML. The HMAC signature confirms who sent the body, but does not prove that the profile is safe: the source could be compromised, its key could leak, or a trusted vendor could provide dangerous data. If the handler passes such YAML to `yaml.unsafe_load`, special tags can execute Python in the handler process. This falls within the risk class **CWE-502: Deserialization of Untrusted Data**. In a practical integration, the first remediation step is `yaml.safe_load` (or a format without executable types), schema validation, and least-privilege process permissions.
+
+The ingress allowlist answers “can this source system perform `telemetry.read`?”, not “is every byte of the profile safe?”. OpenShell answers a different question after the handler starts: “which files and network hosts can this process access?” The demo deliberately allows the parser to execute code to show this second defensive boundary.
+
+Without a sandbox, the process has the current user's permissions and access to resources and networks that user can use. Code can therefore potentially read accessible files, modify writable data, and attempt to communicate over allowed connections. This does not mean automatic root compromise or control of an OT device; actual impact depends on process identity, host, and network segmentation.
+
+The no-OpenShell scenario runs **the same fixed, deliberately malicious payload locally outside the sandbox**, but only against temporary synthetic files and a `127.0.0.1` listener. It does not touch real secrets, user configuration, SCADA/PLC, or external addresses. This demonstrates the impact of a vulnerable handler; it is not a MOVEit exploit or evidence of a vulnerability in any specific operator.
+
+## Flow
 
 ```text
-Czujnik → weryfikacja podpisu → polityka ingress → sandbox OpenShell → handler
-                                  └ deny → kwarantanna + audyt
-Pozostałe źródła ───────────────────────────────────────────────→ działają dalej
+Sensor → signature verification → ingress policy → OpenShell sandbox → handler
+                                  └ deny → quarantine + audit
+Other sources ───────────────────────────────────────────────→ continue operating
 ```
 
-## Zakres MVP
+## MVP scope
 
-- `POST /sensor/{source}` przyjmuje ustandaryzowane zdarzenie JSON.
-- Dwa źródła demonstracyjne: `sensor-a` i `sensor-b`; każde mapuje się na własny, wcześniej utworzony sandbox.
-- Centralna polityka ingress w `policies/defence-ingress.yaml` ma `default_decision: deny`, definiuje sekrety HMAC, sandbox i dozwolone akcje dla każdego źródła.
-- Podpis HMAC jest weryfikowany przed autoryzacją. Błędny podpis jest odrzucany, nie uruchamia handlera i nie powoduje kwarantanny uwierzytelnionego źródła.
-- Dla MVP oba źródła mogą wyłącznie żądać `telemetry.read`. Niedozwolona akcja jest odrzucana na ingress przed wywołaniem OpenShell, zapisywana w audycie i kwarantannuje źródło.
-- Handler wykonuje się przez OpenShell Python SDK w sandboxie przypisanym do źródła.
-- Zdarzenie zawiera `action`, `sensor_id`, `event_id` i `vendor_document`. Demo parsera celowo używa podatnego `yaml.unsafe_load`; nigdy nie używaj go w prawdziwym systemie.
-- Stały payload YAML próbuje odczytać syntetyczny canary, wysłać go do lokalnego kolektora oraz nadpisać syntetyczny plik nastawy.
-- OpenShell jest warstwą containment po ingress: polityka ogranicza pliki i egress, a sandbox ma limit 1 CPU i 256 MiB RAM.
-- Kwarantanna i audyt są przechowywane w lokalnym SQLite (`var/defence.db`), więc przetrwają restart procesu. To nadal pojedynczy lokalny plik, nie współdzielony ani wysoko dostępny store.
-- `POST /admin/sources/{source}/unquarantine` wymaga `DEFENCE_ADMIN_TOKEN` jako Bearer tokenu i zapisanego powodu przeglądu; operacja trafia do audytu.
-- `/events` pokazuje audyt, stan kwarantanny oraz liczniki dozwolonych, zablokowanych i skompromitowanych zdarzeń.
+- `POST /sensor/{source}` accepts a standardized JSON event.
+- Two demonstration sources: `sensor-a` and `sensor-b`; each maps to its own pre-created sandbox.
+- The central ingress policy in `policies/defence-ingress.yaml` has `default_decision: deny` and defines HMAC secrets, sandbox, and allowed actions for each source.
+- The HMAC signature is verified before authorization. An invalid signature is rejected, does not run the handler, and does not quarantine the authenticated source.
+- For the MVP, both sources may request only `telemetry.read`. A disallowed action is rejected at ingress before invoking OpenShell, recorded in the audit, and quarantines the source.
+- The handler runs through the OpenShell Python SDK in the sandbox assigned to the source.
+- The event contains `action`, `sensor_id`, `event_id`, and `vendor_document`. The parser demo deliberately uses vulnerable `yaml.unsafe_load`; never use it in a real system.
+- A fixed YAML payload attempts to read a synthetic canary, send it to a local collector, and overwrite a synthetic setpoint file.
+- OpenShell is the post-ingress containment layer: policy restricts files and egress, and the sandbox has a limit of 1 CPU and 256 MiB RAM.
+- Quarantine and audit are stored in local SQLite (`var/defence.db`) and therefore survive process restarts. This is still a single local file, not a shared or highly available store.
+- `POST /admin/sources/{source}/unquarantine` requires `DEFENCE_ADMIN_TOKEN` as a Bearer token and a recorded review reason; the operation is added to the audit.
+- `/events` shows the audit, quarantine state, and counters for allowed, blocked, and compromised events.
 
 ## Demo
 
-1. Lokalny wariant uruchamia ten sam parser i payload poza OpenShell. Powinien odczytać syntetyczny canary, wysłać jego bajty do lokalnego kolektora i zmienić nastawę z `40` na `9999`.
-2. Wariant OpenShell wysyła exploit jako dozwolone, poprawnie podpisane `telemetry.read`. Parser zostaje skompromitowany, ale polityka sandboxa ma zablokować odczyt chronionych plików, egress i zapis nastawy.
-3. Gateway raportuje containment i kwarantannuje źródło po wykryciu kompromitacji. Niedozwolona akcja nadal jest blokowana wcześniej przez ingress.
-4. `sensor-b` ma niezależny sandbox i pozostaje aktywny.
+1. The local variant runs the same parser and payload outside OpenShell. It should read the synthetic canary, send its bytes to the local collector, and change the setpoint from `40` to `9999`.
+2. The OpenShell variant sends the exploit as an allowed, correctly signed `telemetry.read`. The parser is compromised, but the sandbox policy is expected to block reads of protected files, egress, and the setpoint write.
+3. The gateway reports containment and quarantines the source after detecting compromise. A disallowed action is still blocked earlier by ingress.
+4. `sensor-b` has an independent sandbox and remains active.
 
-## Kryteria ukończenia
+## Completion criteria
 
-- Niedozwolona akcja jest blokowana przez politykę ingress bez wywołania OpenShell.
-- Dozwolona akcja jest przekazywana wyłącznie do sandboxa przypisanego temu źródłu.
-- Sandbox demonstruje ograniczenia filesystem i egress po dopuszczeniu requestu przez ingress.
-- Po odmowie ingress jedno źródło jest kwarantannowane, a drugie działa dalej.
-- Log nie zawiera surowego payloadu ani sekretów.
-- Testy obejmują poprawny odczyt, deny, kwarantannę, izolację źródeł i błędny podpis.
+- A disallowed action is blocked by ingress policy without invoking OpenShell.
+- An allowed action is forwarded only to the sandbox assigned to that source.
+- The sandbox demonstrates filesystem and egress restrictions after ingress allows the request.
+- After an ingress denial, one source is quarantined while the other continues operating.
+- Logs do not contain raw payloads or secrets.
+- Tests cover a valid read, denial, quarantine, source isolation, and an invalid signature.
 
-## Poza zakresem
+## Out of scope
 
-Rzeczywiste podłączenie do SCADA, sterowanie urządzeniami, działanie w infrastrukturze produkcyjnej, trwała baza stanu, konfiguracja wielu tenantów oraz automatyczne tworzenie sandboxów na każde źródło.
+Actual connection to SCADA, device control, operation in production infrastructure, a durable state database, multi-tenant configuration, and automatic creation of a sandbox for every source.
 
-Projekt używa wyłącznie syntetycznych danych demonstracyjnych. Nie wolno podłączać go do systemów operacyjnych ani przesyłać prawdziwych sekretów.
-Ostrożne mapowanie przykładu na wodociąg, IEC 62443, MITRE ATT&CK for ICS i NIS2 znajduje się w [SCENARIO.md](SCENARIO.md); nie jest to deklaracja zgodności.
+The project uses synthetic demonstration data only. Do not connect it to operational systems or submit real secrets.
+The cautious mapping of the example to a water utility, IEC 62443, MITRE ATT&CK for ICS, and NIS2 is in [SCENARIO.md](SCENARIO.md); it is not a compliance claim.
 
-## Uruchomienie lokalnego demo
+## Running the local demo
 
-Wymagane: działający Docker-backed OpenShell gateway, Docker i środowisko z `uv`. Polecenia `openshell` należy wykonać w terminalu zgodnym z konfiguracją Twojego POC.
+Requirements: a working Docker-backed OpenShell gateway, Docker, and an environment with `uv`. Run `openshell` commands in a terminal compatible with your POC configuration.
 
-Z katalogu głównego repozytorium:
+From the repository root:
 
 ```shell
 docker build -t reverseopenshell-runner:dev .
@@ -67,11 +77,11 @@ export OPENSHELL_GRPC_ENDPOINT='127.0.0.1:8080'
 uv run uvicorn defence.app.main:app --port 8001
 ```
 
-Skrypt tworzy dwa sandboxy przed rozpoczęciem obsługi ruchu; nie tworzy nowego sandboxa dla każdego zdarzenia. Sandbox utworzony przed zmianą obrazu/polityki nie aktualizuje się sam. Użyj nowych nazw lub odtwórz stare dopiero po sprawdzeniu, że nie zawierają potrzebnego stanu.
-Override endpointu jest potrzebny, gdy aktywny gateway ma adres `host.docker.internal`, który działa z kontenerów, ale nie rozwiązuje się na hoście macOS.
-Obraz ustawia `/workspace` jako katalog roboczy zapisywalny przez UID 1000. Pliki handlerów w `/app` są jawnie czytelne dla tego UID, a polityka traktuje ten katalog jako read-only.
+The script creates two sandboxes before serving traffic; it does not create a new sandbox for every event. A sandbox created before an image/policy change does not update automatically. Use new names, or recreate old ones only after confirming that they contain no state you need.
+The endpoint override is needed when the active gateway has address `host.docker.internal`, which works from containers but does not resolve on the macOS host.
+The image sets `/workspace` as a working directory writable by UID 1000. Handler files in `/app` are explicitly readable by this UID, and policy treats that directory as read-only.
 
-Podpisz surowe body HMAC-SHA256 w formacie `sha256=<hex>` i przekaż je w nagłówku `x-hook-signature`. Przykład dozwolonego odczytu:
+Sign the raw body using HMAC-SHA256 in the format `sha256=<hex>` and pass it in the `x-hook-signature` header. Example allowed read:
 
 ```shell
 BODY='{"action":"telemetry.read","sensor_id":"A-01","event_id":"evt-001","vendor_document":"flow_lpm: 7.25\n"}'
@@ -81,9 +91,18 @@ curl -sS -X POST http://127.0.0.1:8001/sensor/sensor-a \
   --data "$BODY"
 ```
 
-## Porównanie exploita
+## Exploit comparison
 
-Uruchom API z tokenem testowego kolektora (po wcześniejszym zatrzymaniu poprzedniego procesu API):
+The baseline alone, without OpenShell and without a running API, can be run separately:
+
+```shell
+export DEMO_EXFIL_TOKEN='local-demo-collector-token'
+uv run python scripts/compare-defence-exploit.py --baseline-only --trials 1
+```
+
+This command runs the deliberately vulnerable handler in a local Python process. The report should show `passed: true`, a successful synthetic canary read, 34 bytes at the loopback listener, and setpoint `9999`. Files are in a temporary directory removed after the test. The payload is fixed in code; do not provide it with other paths or addresses.
+
+The full baseline–OpenShell comparison requires a local gateway and API. Start the API with the test collector token (after stopping any previous API process):
 
 ```shell
 export DEMO_EXFIL_TOKEN='local-demo-collector-token'
@@ -91,7 +110,7 @@ export DEMO_EXFIL_URL='http://host.openshell.internal:9999/collect'
 uv run uvicorn defence.app.main:app --port 8001
 ```
 
-W drugim terminalu:
+In a second terminal:
 
 ```shell
 export DEFENCE_SENSOR_A_SECRET='demo-sensor-a'
@@ -102,32 +121,32 @@ export OPENSHELL_GRPC_ENDPOINT='127.0.0.1:8080'
 uv run python scripts/bench-defence.py --trials 20
 ```
 
-Benchmark najpierw zwalnia sensor A, uruchamia 20 lokalnych baseline’ów i 20 uruchomień sandboxa, po czym sprawdza kwarantannę A oraz poprawny odczyt B. Wypisuje podsumowanie i zapisuje per-trial JSON wraz z metadanymi do nowego pliku pod `var/`. Sensor A pozostaje po teście w kwarantannie.
+The benchmark first unquarantines sensor A, runs 20 local baselines and 20 sandbox runs, then checks A's quarantine and a valid read from B. It prints a summary and saves per-trial JSON with metadata to a new file under `var/`. Sensor A remains quarantined after the test.
 
-Baseline powinien wykazać odczyt canary, bajty otrzymane przez lokalny kolektor i nastawę `9999`. Dla sandboxa wymagaj zablokowanego odczytu i zapisu oraz `collector_received_bytes: 0`. Sprawdź logi OpenShell, by potwierdzić przyczynę odmowy egress; sam brak danych w kolektorze jej nie dowodzi. Nie używaj prawdziwych sekretów ani zdalnego kolektora.
+The baseline should demonstrate a canary read, bytes received by the local collector, and setpoint `9999`. For the sandbox, require blocked reads and writes and `collector_received_bytes: 0`. Check OpenShell logs to confirm the reason for egress denial; the absence of data at the collector alone does not prove it. Do not use real secrets or a remote collector.
 
-### Zapisany wynik testu lokalnego
+### Saved local test result
 
-Szczegółowy dziennik prób, wcześniejszych wyników i ograniczeń znajduje się w [EXPERIMENTS.md](EXPERIMENTS.md). Najnowszy zapisany przebieg to D-08:
+The detailed trial log, previous results, and limitations are in [EXPERIMENTS.md](EXPERIMENTS.md). The latest saved run is D-08:
 
-Jedno uruchomienie 20 powtórzeń (2026-10-03):
+One run of 20 repetitions (2026-10-03):
 
-| Pomiar | Wynik |
+| Measurement | Result |
 |---|---:|
 | Baseline: canary read / collector receive | 20/20 |
-| Baseline: bajty dostarczone do kolektora | 680 |
-| Baseline: setpoint po ataku | `9999` |
-| OpenShell: canary read zablokowany | 20/20 |
-| OpenShell: setpoint write zablokowany | 20/20 |
-| OpenShell: bajty dostarczone do kolektora | 0 |
+| Baseline: bytes delivered to collector | 680 |
+| Baseline: setpoint after attack | `9999` |
+| OpenShell: canary read blocked | 20/20 |
+| OpenShell: setpoint write blocked | 20/20 |
+| OpenShell: bytes delivered to collector | 0 |
 | Baseline `handle()` p50 / p95 | 4.17 / 6.09 ms |
 | Sandbox `session.exec()` p50 / p95 | 206.24 / 226.56 ms |
 
-Log sandboxa pokazał `NET:REFUSE [MED] DENIED host.openshell.internal [reason:policy_dns_ineligible]`, czyli potwierdził odmowę egress przez politykę. Licznik `exfiltration_requests_blocked_by_openshell` wyniósł 0, ponieważ połączenia zostały odrzucone na poziomie sieci i nie zwróciły HTTP 403; właściwym dowodem są wpisy OpenShell oraz 0 bajtów w lokalnym kolektorze.
+The sandbox log showed `NET:REFUSE [MED] DENIED host.openshell.internal [reason:policy_dns_ineligible]`, confirming policy-based egress denial. The `exfiltration_requests_blocked_by_openshell` counter was 0 because connections were rejected at the network level and did not return HTTP 403; the appropriate evidence is the OpenShell entries and 0 bytes at the local collector.
 
-To wynik jednego lokalnego środowiska i jednego syntetycznego payloadu. Czasy nie są pomiarem „czystego narzutu sandboxa”: baseline mierzy samo wywołanie handlera, a `session.exec()` obejmuje również komunikację SDK/gateway. Nie uogólniaj tych liczb na produkcję.
+This is the result from one local environment and one synthetic payload. The timings are not a measurement of “pure sandbox overhead”: the baseline measures only the handler call, while `session.exec()` also includes SDK/gateway communication. Do not generalize these numbers to production.
 
-Przykład niedozwolonej akcji ingress:
+Example disallowed ingress action:
 
 ```shell
 BODY='{"action":"telemetry.write","sensor_id":"A-01","event_id":"evt-denied","vendor_document":"flow_lpm: 7.25\n"}'
@@ -137,11 +156,11 @@ curl -sS -X POST http://127.0.0.1:8001/sensor/sensor-a \
   --data "$BODY"
 ```
 
-Oczekiwany wynik niedozwolonej akcji: HTTP 403, `source quarantined`, bez uruchomienia handlera. Po kwarantannie `sensor-a` sprawdź, że `sensor-b` nadal przyjmuje podpisane `telemetry.read`. `/events` pokazuje aktywne i quarantined źródła oraz liczbę zablokowanych żądań ingress.
+Expected result for a disallowed action: HTTP 403, `source quarantined`, and no handler execution. After `sensor-a` is quarantined, verify that `sensor-b` still accepts signed `telemetry.read`. `/events` shows active and quarantined sources and the number of blocked ingress requests.
 
-### Test niezależności sensorów
+### Sensor independence test
 
-Po tym, jak sensor A trafi do kwarantanny, wyślij poprawnie podpisany, nieszkodliwy odczyt do sensora B. W tym samym terminalu ustaw sekret użyty przy starcie API:
+After sensor A has been quarantined, send a correctly signed, benign read to sensor B. In the same terminal, set the secret used when starting the API:
 
 ```shell
 export DEFENCE_SENSOR_B_SECRET='demo-sensor-b'
@@ -153,9 +172,9 @@ curl -sS -X POST http://127.0.0.1:8001/sensor/sensor-b \
   --data "$BODY"
 ```
 
-Oczekuj odpowiedzi HTTP 200 ze `status: accepted`. To testuje niezależność routingu i sandboxów; nie jest to test containmentu exploita.
+Expect an HTTP 200 response with `status: accepted`. This tests routing and sandbox independence; it is not an exploit containment test.
 
-Po ręcznym sprawdzeniu źródła można je zwolnić. Użyj silnego, lokalnego tokenu zamiast przykładowej wartości:
+After manually reviewing a source, it can be released. Use a strong local token instead of the example value:
 
 ```shell
 curl -sS -X POST http://127.0.0.1:8001/admin/sources/sensor-a/unquarantine \
@@ -164,4 +183,4 @@ curl -sS -X POST http://127.0.0.1:8001/admin/sources/sensor-a/unquarantine \
   --data '{"reason":"Reviewed synthetic incident and rotated source key."}'
 ```
 
-Demo nie ma identity provider ani ról operatorów. Nie udostępniaj tego endpointu poza lokalnym środowiskiem testowym.
+The demo has no identity provider or operator roles. Do not expose this endpoint outside a local test environment.

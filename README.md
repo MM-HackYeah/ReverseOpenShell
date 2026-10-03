@@ -1,19 +1,19 @@
 # ReverseOpenShell
 
-Minimalne MVP dla wyzwania **Goldman Sachs AI Control Layer**. Projekt przyjmuje webhooki od zewnętrznych integracji, przypisuje im maksymalny poziom zaufania, opcjonalnie obniża go na podstawie klasyfikacji lokalnym LLM, a następnie uruchamia request w istniejącym sandboxie OpenShell.
+Minimal MVP for the **Goldman Sachs AI Control Layer** challenge. The project accepts webhooks from external integrations, assigns them a maximum trust level, optionally lowers it based on local LLM classification, and then runs the request in an existing OpenShell sandbox.
 
-## Zakres
+## Scope
 
-- Trzy wcześniej utworzone sandboxy: `untrusted`, `readonly`, `write`.
-- Gateway FastAPI: `POST /hook/{source}`.
-- Klasyfikacja nie może podwyższyć zaufania ponad skonfigurowany limit źródła.
-- Podpis HMAC źródła; brak lub błędny sekret oznacza poziom `untrusted`.
-- Izolowane wykonanie przez `openshell sandbox exec`, log audytowy JSONL i endpoint do jego odczytu.
-- Opcjonalna klasyfikacja przez lokalne Ollama. Bez modelu działają reguły deterministyczne; błąd klasyfikatora obniża poziom do `untrusted`.
+- Three pre-created sandboxes: `untrusted`, `readonly`, `write`.
+- FastAPI gateway: `POST /hook/{source}`.
+- Classification cannot raise trust above the configured source limit.
+- Source HMAC signature; a missing or invalid secret means `untrusted`.
+- Isolated execution through `openshell sandbox exec`, a JSONL audit log, and an endpoint for reading it.
+- Optional classification through local Ollama. Deterministic rules work without a model; classifier errors lower the level to `untrusted`.
 
-## Uruchomienie
+## Running
 
-Wymagane: Python 3.11+, `uv`, Docker oraz skonfigurowany lokalny gateway OpenShell. W katalogu repo:
+Requirements: Python 3.11+, `uv`, Docker, and a configured local OpenShell gateway. From the repository directory:
 
 ```shell
 docker build -t reverseopenshell-runner:dev .
@@ -24,9 +24,9 @@ export PARTNER_WRITE_SECRET='local-demo-write'
 uv run uvicorn goldmansachs.app.main:app --reload
 ```
 
-Sekrety powyżej są wyłącznie przykładowymi wartościami do lokalnego demo. Nie używaj ich poza nim.
+The secrets above are example values for a local demo only. Do not use them elsewhere.
 
-Wyślij podpisany, dozwolony request:
+Send a signed, allowed request:
 
 ```shell
 BODY='{"url":"https://api.github.com/zen","method":"GET"}'
@@ -37,13 +37,13 @@ curl -sS -X POST http://127.0.0.1:8000/hook/demo-readonly \
   --data "$BODY"
 ```
 
-Sprawdź `/docs`, `/health` i `/events`. Ustaw `OLLAMA_MODEL` (oraz opcjonalnie `OLLAMA_URL`) aby włączyć klasyfikację semantyczną przez lokalny Ollama. Python SDK łączy się z aktywnym gatewayem wybranym przez OpenShell CLI.
+Check `/docs`, `/health`, and `/events`. Set `OLLAMA_MODEL` (and optionally `OLLAMA_URL`) to enable semantic classification through local Ollama. The Python SDK connects to the active gateway selected by the OpenShell CLI.
 
-## Bezpieczeństwo i ograniczenia
+## Security and limitations
 
-OpenShell egzekwuje ograniczenia systemu plików i sieci wewnątrz sandboxa; gateway nie traktuje samej klasyfikacji LLM jako kontroli dostępu. Demo nie przyjmuje dowolnego kodu od requestu i nie udostępnia kluczy zewnętrznych. Sandbox `write` dopuszcza tylko `POST` do przykładowego endpointu `postman-echo.com/post`, bez sekretów. Integracja z providerem credential OpenShell nie jest częścią tego minimalnego MVP.
+OpenShell enforces filesystem and network restrictions inside the sandbox; the gateway does not treat LLM classification alone as access control. The demo does not accept arbitrary code from a request and does not expose external keys. The `write` sandbox permits only `POST` to the example endpoint `postman-echo.com/post`, without secrets. Integration with the OpenShell credential provider is not part of this minimal MVP.
 
-W produkcji potrzebne byłyby m.in. uwierzytelnianie źródeł z właściwym zarządzaniem sekretami, trwały audyt, rate limiting, ochrona przed replay, bezpieczne zarządzanie sandboxami i walidacja zagrożeń operacyjnych.
+Production use would require, among other things, source authentication with proper secret management, durable auditing, rate limiting, replay protection, secure sandbox management, and operational threat validation.
 
 ## Defence — ingress policy and post-ingress containment
 

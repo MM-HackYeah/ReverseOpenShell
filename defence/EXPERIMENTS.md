@@ -14,6 +14,7 @@ This log records experiments actually run against the local prototype. It is not
 | D-06 | 2026-10-03 | Local automated tests | 9 Defence API/runner tests passed after the short sandbox names were introduced. One existing Starlette warning notes that `httpx` is deprecated in `TestClient`; it did not fail tests. |
 | D-07 | 2026-10-03 | One-command benchmark | `scripts/bench-defence.py --trials 20` returned `passed: true`, including a post-quarantine sensor B check (HTTP 200). Full report is ignored under `var/`: `defence-benchmark-20261003T190317983031Z-c6789e82.json`. Source was run from HEAD `ec00ca2` with uncommitted benchmark/documentation changes. |
 | D-08 | 2026-10-03 | Polished one-command benchmark | Reran after making stdout concise and storing all trial detail in JSON. `passed: true`; 20/20 baseline reads, deliveries, and writes succeeded; 20/20 sandbox reads and writes were blocked; 0 collector bytes; sensor B returned HTTP 200 after A was quarantined. Report: `var/defence-benchmark-20261003T190418725368Z-06f1ff57.json`. |
+| D-09 | 2026-10-03 | Baseline-only no-OpenShell demonstration | `compare-defence-exploit.py --baseline-only --trials 1` returned `passed: true`: synthetic secret read, 34 loopback collector bytes, synthetic setpoint `9999`. It did not contact the gateway/API. |
 
 ## D-03 measurements
 
@@ -58,6 +59,10 @@ The final one-command benchmark rerun reported:
 | p50 / p95 | 4.17 / 6.09 ms | 206.24 / 226.56 ms |
 
 Sensor A was quarantined and the benign sensor B isolation request was accepted (HTTP 200). The egress-denial log signature was verified in the same live setup in D-04; the benchmark itself records unsuccessful egress and byte counts, not raw logs.
+
+### D-09 baseline-only demonstration
+
+The new no-OpenShell mode ran one local trial using a temporary canary, temporary setpoint, and loopback-only listener. All four checks passed: secret read succeeded, exfiltration reached the listener, setpoint write succeeded, and the final synthetic setpoint was `9999`. The temporary fixture directory was cleaned up by the test. This demonstrates impact in the local harness only; it does not access real host secrets or external endpoints.
 
 ## Repeatable benchmark
 
