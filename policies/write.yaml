@@ -1,0 +1,31 @@
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /bin
+    - /usr
+    - /usr/local
+    - /lib
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /dev/null
+    - /dev/urandom
+    - /app
+  read_write:
+    - /tmp
+landlock:
+  compatibility: hard_requirement
+network_policies:
+  demo_write:
+    endpoints:
+      - host: postman-echo.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow:
+              method: POST
+              path: /post
+    binaries:
+      - path: /usr/local/bin/python3.12
