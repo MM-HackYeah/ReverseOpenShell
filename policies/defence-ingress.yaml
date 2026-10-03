@@ -3,11 +3,11 @@ default_decision: deny
 sources:
   sensor-a:
     secret_env: DEFENCE_SENSOR_A_SECRET
-    sandbox: defence-sensor-a-shield
+    sandbox: def-sensor-a
     allowed_actions:
       - telemetry.read
   sensor-b:
     secret_env: DEFENCE_SENSOR_B_SECRET
-    sandbox: defence-sensor-b-shield
+    sandbox: def-sensor-b
     allowed_actions:
       - telemetry.read

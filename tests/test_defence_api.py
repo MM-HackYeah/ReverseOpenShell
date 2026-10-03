@@ -90,7 +90,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
     )
     assert response_b.status_code == 200
     assert response_b.json()["status"] == "accepted"
-    assert calls == ["defence-sensor-b-shield"]
+    assert calls == ["def-sensor-b"]
 
     state = client.get("/events").json()
     assert state["quarantined_sources"] == ["sensor-a"]
@@ -195,7 +195,7 @@ def test_parser_compromise_is_quarantined_and_reported(monkeypatch, tmp_path):
     assert response.json()["status"] == "quarantined"
     assert response.json()["containment"] == report
     assert len(called) == 1
-    assert called[0][0] == "defence-sensor-a-shield"
+    assert called[0][0] == "def-sensor-a"
     assert called[0][2]["DEMO_CANARY_PATH"] == "/opt/demo-protected/canary.secret"
     persisted = main.events()["events"][0]
     assert "vendor_document" not in persisted
@@ -274,4 +274,4 @@ def test_unquarantine_requires_operator_and_persists_reason(monkeypatch, tmp_pat
         headers={"x-hook-signature": accepted_signature},
     )
     assert accepted.status_code == 200
-    assert calls == ["defence-sensor-a-shield"]
+    assert calls == ["def-sensor-a"]

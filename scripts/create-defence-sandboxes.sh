@@ -6,7 +6,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 for source in sensor-a sensor-b; do
-  sandbox="defence-${source}-shield"
+  sandbox="def-${source}"
   policy="policies/defence-${source}.yaml"
   echo "Creating ${sandbox} with ${policy}"
   openshell sandbox create \

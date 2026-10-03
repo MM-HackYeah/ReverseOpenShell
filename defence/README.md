@@ -95,14 +95,37 @@ W drugim terminalu:
 
 ```shell
 export DEFENCE_SENSOR_A_SECRET='demo-sensor-a'
+export DEFENCE_SENSOR_B_SECRET='demo-sensor-b'
+export DEFENCE_ADMIN_TOKEN='local-demo-operator-token'
 export DEMO_EXFIL_TOKEN='local-demo-collector-token'
 export OPENSHELL_GRPC_ENDPOINT='127.0.0.1:8080'
-DEMO_BENCHMARK_TRIALS=20 uv run python scripts/compare-defence-exploit.py
+uv run python scripts/bench-defence.py --trials 20
 ```
 
-Skrypt mierzy 20 lokalnych baseline’ów i 20 uruchomień już działającego sandboxa, a następnie wysyła jeden podpisany request przez gateway, aby sprawdzić kwarantannę. Raportuje zmierzone p50/p95 dla tych uruchomień. To benchmark jednego syntetycznego payloadu, nie 20 różnych klas ataków ani wynik reprezentatywny dla produkcji.
+Benchmark najpierw zwalnia sensor A, uruchamia 20 lokalnych baseline’ów i 20 uruchomień sandboxa, po czym sprawdza kwarantannę A oraz poprawny odczyt B. Wypisuje podsumowanie i zapisuje per-trial JSON wraz z metadanymi do nowego pliku pod `var/`. Sensor A pozostaje po teście w kwarantannie.
 
 Baseline powinien wykazać odczyt canary, bajty otrzymane przez lokalny kolektor i nastawę `9999`. Dla sandboxa wymagaj zablokowanego odczytu i zapisu oraz `collector_received_bytes: 0`. Sprawdź logi OpenShell, by potwierdzić przyczynę odmowy egress; sam brak danych w kolektorze jej nie dowodzi. Nie używaj prawdziwych sekretów ani zdalnego kolektora.
+
+### Zapisany wynik testu lokalnego
+
+Szczegółowy dziennik prób, wcześniejszych wyników i ograniczeń znajduje się w [EXPERIMENTS.md](EXPERIMENTS.md). Najnowszy zapisany przebieg to D-08:
+
+Jedno uruchomienie 20 powtórzeń (2026-10-03):
+
+| Pomiar | Wynik |
+|---|---:|
+| Baseline: canary read / collector receive | 20/20 |
+| Baseline: bajty dostarczone do kolektora | 680 |
+| Baseline: setpoint po ataku | `9999` |
+| OpenShell: canary read zablokowany | 20/20 |
+| OpenShell: setpoint write zablokowany | 20/20 |
+| OpenShell: bajty dostarczone do kolektora | 0 |
+| Baseline `handle()` p50 / p95 | 4.17 / 6.09 ms |
+| Sandbox `session.exec()` p50 / p95 | 206.24 / 226.56 ms |
+
+Log sandboxa pokazał `NET:REFUSE [MED] DENIED host.openshell.internal [reason:policy_dns_ineligible]`, czyli potwierdził odmowę egress przez politykę. Licznik `exfiltration_requests_blocked_by_openshell` wyniósł 0, ponieważ połączenia zostały odrzucone na poziomie sieci i nie zwróciły HTTP 403; właściwym dowodem są wpisy OpenShell oraz 0 bajtów w lokalnym kolektorze.
+
+To wynik jednego lokalnego środowiska i jednego syntetycznego payloadu. Czasy nie są pomiarem „czystego narzutu sandboxa”: baseline mierzy samo wywołanie handlera, a `session.exec()` obejmuje również komunikację SDK/gateway. Nie uogólniaj tych liczb na produkcję.
 
 Przykład niedozwolonej akcji ingress:
 
@@ -115,6 +138,22 @@ curl -sS -X POST http://127.0.0.1:8001/sensor/sensor-a \
 ```
 
 Oczekiwany wynik niedozwolonej akcji: HTTP 403, `source quarantined`, bez uruchomienia handlera. Po kwarantannie `sensor-a` sprawdź, że `sensor-b` nadal przyjmuje podpisane `telemetry.read`. `/events` pokazuje aktywne i quarantined źródła oraz liczbę zablokowanych żądań ingress.
+
+### Test niezależności sensorów
+
+Po tym, jak sensor A trafi do kwarantanny, wyślij poprawnie podpisany, nieszkodliwy odczyt do sensora B. W tym samym terminalu ustaw sekret użyty przy starcie API:
+
+```shell
+export DEFENCE_SENSOR_B_SECRET='demo-sensor-b'
+BODY='{"action":"telemetry.read","sensor_id":"B-01","event_id":"evt-b-normal","vendor_document":"flow_lpm: 7.25"}'
+SIG=$(printf %s "$BODY" | openssl dgst -sha256 -hmac "$DEFENCE_SENSOR_B_SECRET" -hex | awk '{print $2}')
+curl -sS -X POST http://127.0.0.1:8001/sensor/sensor-b \
+  -H 'content-type: application/json' \
+  -H "x-hook-signature: sha256=$SIG" \
+  --data "$BODY"
+```
+
+Oczekuj odpowiedzi HTTP 200 ze `status: accepted`. To testuje niezależność routingu i sandboxów; nie jest to test containmentu exploita.
 
 Po ręcznym sprawdzeniu źródła można je zwolnić. Użyj silnego, lokalnego tokenu zamiast przykładowej wartości:
 
