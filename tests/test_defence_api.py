@@ -22,18 +22,17 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
     secret_b = "sensor-b-test-secret"
     monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", secret_a)
     monkeypatch.setenv("DEFENCE_SENSOR_B_SECRET", secret_b)
-    monkeypatch.setattr(main, "AUDIT_PATH", tmp_path / "audit.jsonl")
-    main.QUARANTINE.clear()
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
     calls = []
 
-    def execute(sandbox, payload):
+    def execute(sandbox, payload, runtime_env=None):
         calls.append(sandbox)
         return {
             "status": "accepted",
             "action": payload["action"],
             "sensor_id": payload["sensor_id"],
             "event_id": payload["event_id"],
-            "flow_lpm": payload["flow_lpm"],
+            "flow_lpm": 8,
         }
 
     monkeypatch.setattr(main, "_execute_in_openshell", execute)
@@ -45,7 +44,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
             "action": "telemetry.write",
             "sensor_id": "A-01",
             "event_id": "evt-attack",
-            "flow_lpm": 12.5,
+            "vendor_document": "flow_lpm: 12.5\n",
         },
     )
     response = client.post(
@@ -63,7 +62,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
             "action": "telemetry.read",
             "sensor_id": "A-01",
             "event_id": "evt-next",
-            "flow_lpm": 10,
+            "vendor_document": "flow_lpm: 10\n",
         },
     )
     assert (
@@ -81,7 +80,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
             "action": "telemetry.read",
             "sensor_id": "B-01",
             "event_id": "evt-normal",
-            "flow_lpm": 8,
+            "vendor_document": "flow_lpm: 8\n",
         },
     )
     response_b = client.post(
@@ -91,7 +90,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
     )
     assert response_b.status_code == 200
     assert response_b.json()["status"] == "accepted"
-    assert calls == ["defence-sensor-b"]
+    assert calls == ["defence-sensor-b-shield"]
 
     state = client.get("/events").json()
     assert state["quarantined_sources"] == ["sensor-a"]
@@ -99,12 +98,14 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
     assert state["metrics"] == {
         "accepted_events": 1,
         "blocked_ingress_requests": 1,
+        "parser_compromises": 0,
+        "invalid_signatures": 0,
     }
 
 
 def test_invalid_signature_never_executes_sandbox(monkeypatch, tmp_path):
     monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "expected")
-    monkeypatch.setattr(main, "AUDIT_PATH", tmp_path / "audit.jsonl")
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
     called = False
 
     def execute(*_args):
@@ -119,12 +120,13 @@ def test_invalid_signature_never_executes_sandbox(monkeypatch, tmp_path):
             "action": "telemetry.read",
             "sensor_id": "A-01",
             "event_id": "evt",
-            "flow_lpm": 5,
+            "vendor_document": "flow_lpm: 5\n",
         },
         headers={"x-hook-signature": "sha256=invalid"},
     )
     assert response.status_code == 401
     assert called is False
+    assert main.events()["metrics"]["invalid_signatures"] == 1
 
 
 def test_unknown_source_is_rejected(monkeypatch):
@@ -152,3 +154,124 @@ def test_gateway_endpoint_override_is_used(monkeypatch):
     monkeypatch.setattr(main, "SandboxClient", FakeClient)
     main._openshell_client()
     assert created == {"endpoint": "127.0.0.1:8080", "timeout": 10}
+
+
+def test_parser_compromise_is_quarantined_and_reported(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "test-secret")
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
+    called = []
+    report = {
+        "secret_read": "blocked",
+        "exfiltration": "blocked_by_openshell",
+        "setpoint_write": "blocked",
+    }
+
+    def execute(sandbox, payload, runtime_env=None):
+        called.append((sandbox, payload, runtime_env))
+        return {
+            "status": "parser_compromised",
+            "action": payload["action"],
+            "sensor_id": payload["sensor_id"],
+            "event_id": payload["event_id"],
+            "attack_report": report,
+        }
+
+    monkeypatch.setattr(main, "_execute_in_openshell", execute)
+    body, signature = signed_event(
+        "test-secret",
+        {
+            "action": "telemetry.read",
+            "sensor_id": "A-01",
+            "event_id": "evt-exploit",
+            "vendor_document": "synthetic exploit payload",
+        },
+    )
+    response = TestClient(main.app).post(
+        "/sensor/sensor-a",
+        content=body,
+        headers={"x-hook-signature": signature},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "quarantined"
+    assert response.json()["containment"] == report
+    assert len(called) == 1
+    assert called[0][0] == "defence-sensor-a-shield"
+    assert called[0][2]["DEMO_CANARY_PATH"] == "/opt/demo-protected/canary.secret"
+    persisted = main.events()["events"][0]
+    assert "vendor_document" not in persisted
+    assert main.events()["metrics"]["parser_compromises"] == 1
+
+
+def test_unquarantine_requires_operator_and_persists_reason(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "sensor-a-secret")
+    monkeypatch.setenv("DEFENCE_ADMIN_TOKEN", "operator-test-token")
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
+    calls = []
+
+    def execute(sandbox, payload, runtime_env=None):
+        calls.append(sandbox)
+        return {
+            "status": "accepted",
+            "action": payload["action"],
+            "sensor_id": payload["sensor_id"],
+            "event_id": payload["event_id"],
+            "flow_lpm": 4,
+        }
+
+    monkeypatch.setattr(main, "_execute_in_openshell", execute)
+    client = TestClient(main.app)
+    body, signature = signed_event(
+        "sensor-a-secret",
+        {
+            "action": "telemetry.write",
+            "sensor_id": "A-01",
+            "event_id": "evt-denied",
+            "vendor_document": "flow_lpm: 4\n",
+        },
+    )
+    denied = client.post(
+        "/sensor/sensor-a",
+        content=body,
+        headers={"x-hook-signature": signature},
+    )
+    assert denied.status_code == 403
+    assert (
+        client.post(
+            "/sensor/sensor-a",
+            content=body,
+            headers={"x-hook-signature": signature},
+        ).status_code
+        == 423
+    )
+
+    unapproved = client.post(
+        "/admin/sources/sensor-a/unquarantine",
+        json={"reason": "reviewed"},
+    )
+    assert unapproved.status_code == 401
+
+    released = client.post(
+        "/admin/sources/sensor-a/unquarantine",
+        json={"reason": "Operator reviewed the source and rotated its key."},
+        headers={"authorization": "Bearer operator-test-token"},
+    )
+    assert released.status_code == 200
+    assert released.json()["was_quarantined"] is True
+    assert main.events()["quarantined_sources"] == []
+    assert main.events()["events"][-1]["decision"] == "unquarantine"
+    accepted_body, accepted_signature = signed_event(
+        "sensor-a-secret",
+        {
+            "action": "telemetry.read",
+            "sensor_id": "A-01",
+            "event_id": "evt-after-review",
+            "vendor_document": "flow_lpm: 4\n",
+        },
+    )
+    accepted = client.post(
+        "/sensor/sensor-a",
+        content=accepted_body,
+        headers={"x-hook-signature": accepted_signature},
+    )
+    assert accepted.status_code == 200
+    assert calls == ["defence-sensor-a-shield"]

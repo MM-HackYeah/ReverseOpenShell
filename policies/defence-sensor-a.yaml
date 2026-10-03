@@ -18,13 +18,4 @@ landlock:
 process:
   run_as_user: "1000"
   run_as_group: "1000"
-network_policies:
-  telemetry_read:
-    endpoints:
-      - host: api.github.com
-        port: 443
-        protocol: rest
-        enforcement: enforce
-        access: read-only
-    binaries:
-      - path: /usr/local/bin/python3.12
+network_policies: {}

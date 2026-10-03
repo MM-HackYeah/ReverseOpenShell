@@ -40,7 +40,7 @@ Pokazać ingress authorization przed wykonaniem handlera: polityka jawnie dozwal
 - Przygotować osobny sandbox OpenShell na każde źródło (tworzony przed demo, nie per request).
 - Każda polityka ma filesystem read-only, minimalny dostęp do `/tmp`, `landlock.compatibility: hard_requirement` i domyślnie brak egress.
 - Nie udostępniać klientowi przełącznika symulującego atak ani nieautoryzowanego egressu jako przykładu ingress deny.
-- Po ingress deny atomowo oznaczać źródło jako quarantined; inne źródła zachowują własny stan i sandbox.
+- Po ingress deny oznaczać źródło jako quarantined w SQLite; inne źródła zachowują własny stan i sandbox.
 
 **Warunek wyjścia:** test potwierdza, że zabroniona akcja nie wywołuje sandboxa, źródło nie przyjmuje kolejnych requestów, a drugie źródło dalej działa.
 
@@ -49,7 +49,7 @@ Pokazać ingress authorization przed wykonaniem handlera: polityka jawnie dozwal
 - Zapisywać correlation ID, źródło, decyzję, poziom zaufania, powód, czas oraz stan kwarantanny; nie zapisywać body ani kluczy.
 - Udostępnić endpoint `/events` z audytem i stanem źródeł.
 - Dodać testy poprawnego odczytu, błędnego podpisu, ingress deny przed runnerem, kwarantanny i niezależności źródeł.
-- Przygotować skrypt demo: poprawny sensor A → atak A → sensor A odrzucony → poprawny sensor B.
+- Przygotować skrypt porównawczy: identyczny syntetyczny exploit poza sandboxem oraz w sandboxie; dodatkowo signed attack przez ingress powoduje kwarantannę.
 
 **Warunek ukończenia:** demo działa powtarzalnie od czystego uruchomienia, testy przechodzą, a każda decyzja jest wyjaśnialna w logu.
 
@@ -60,12 +60,12 @@ Najpierw zamknąć przepływ gateway → weryfikacja HMAC → ingress policy →
 ## Ryzyka i ograniczenia
 
 - Każdy sandbox działa na tym samym compute driverze/gatewayu co istniejący POC; nazwy i workspace są konfigurowalne.
-- Kwarantanna jest in-memory w MVP; restart gatewaya ją czyści.
-- Nie wykonywać dowolnego kodu ani hosta wskazanego przez webhook. Próba egress jest stałą akcją demonstracyjną.
+- Kwarantanna i audyt są w lokalnym SQLite; to pojedynczy lokalny store bez HA.
+- Exploit comparison ma jeden stały syntetyczny YAML payload, tymczasowy canary, lokalny kolektor i atrapę nastawy. Nie łączy się z realnymi systemami.
 - Ingress deny powinien być widoczny w audycie aplikacji; nie przedstawiać go jako zdarzenia `DENIED` OpenShell.
 - OpenShell jest drugą warstwą containmentu dla dozwolonego handlera, nie źródłem decyzji ingress.
 - Kontener współdzieli jądro; nie deklarować ochrony przed każdym kernel exploitem.
 
 ## Następny krok
 
-Zaimplementować ten scenariusz jako osobną aplikację Defence, używając wspólnych helperów tylko tam, gdzie nie zaciera to różnic między zadaniami. POC w `/Users/marcinbodych/Workspace/HackYeah2026/OpenShell` jest źródłem prawdy dla poleceń i zachowania runtime.
+Pozostałe prace po MVP: wykonać benchmark w działającym OpenShell, rozszerzyć testy do wielu odrębnych bezpiecznych przypadków i zastąpić lokalny operator token właściwym identity/approval w docelowej integracji. Wodociąg/IEC 62443/MITRE/NIS2 są mapowane koncepcyjnie w `SCENARIO.md`, nie jako deklaracja zgodności. POC w `/Users/marcinbodych/Workspace/HackYeah2026/OpenShell` jest źródłem prawdy dla poleceń i zachowania runtime.

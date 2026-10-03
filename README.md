@@ -45,8 +45,10 @@ OpenShell egzekwuje ograniczenia systemu plików i sieci wewnątrz sandboxa; gat
 
 W produkcji potrzebne byłyby m.in. uwierzytelnianie źródeł z właściwym zarządzaniem sekretami, trwały audyt, rate limiting, ochrona przed replay, bezpieczne zarządzanie sandboxami i walidacja zagrożeń operacyjnych.
 
-## Defence — ingress policy prototype
+## Defence — ingress policy and post-ingress containment
 
-Separate Defence flow demonstrates the reverse boundary: `policies/defence-ingress.yaml` authorizes signed inbound actions before the request reaches OpenShell. A denied action is audited and quarantines only that source; an allowed action is sent to its assigned OpenShell sandbox. The OpenShell policies in `policies/defence-sensor-*.yaml` remain the secondary containment layer for handler filesystem and egress.
+Separate Defence flow demonstrates two distinct controls: `policies/defence-ingress.yaml` authorizes signed inbound actions before the request reaches OpenShell, then OpenShell confines the deliberately vulnerable YAML parser after an allowed request enters its sandbox. The synthetic exploit compares an unconfined baseline with the sandbox for access to a canary file, egress to a local-only collector, and a write to a synthetic setpoint. A parser compromise triggers source quarantine.
 
-See [`defence/README.md`](defence/README.md) for setup and the demo sequence. This path no longer uses `demo_action` or an outbound POST as its ingress-denial example.
+The parser intentionally uses `yaml.unsafe_load` and is exploit-vulnerable by design. Never deploy it or connect the demo to real infrastructure. The comparison script reports local measurements only after it is run; no benchmark result is claimed in this README. SQLite now persists audit and quarantine state, and a token-protected operator endpoint records unquarantine reasons. [`defence/SCENARIO.md`](defence/SCENARIO.md) provides conceptual water-utility/standards mappings, not a compliance assessment.
+
+See [`defence/README.md`](defence/README.md) for setup, comparison, and limitations.

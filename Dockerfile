@@ -1,6 +1,14 @@
 FROM python:3.12-slim
 
-RUN mkdir -p /workspace && chown 1000:1000 /workspace
+RUN pip install --no-cache-dir PyYAML==6.0.2
+
+RUN mkdir -p /workspace /opt/demo-protected \
+    && chown 1000:1000 /workspace \
+    && printf '%s' 'SYNTHETIC-CANARY-NOT-A-REAL-SECRET' > /opt/demo-protected/canary.secret \
+    && printf '%s' '{"setpoint_lpm":40}' > /opt/demo-protected/setpoint.json \
+    && chown -R 1000:1000 /opt/demo-protected \
+    && chmod 0600 /opt/demo-protected/canary.secret /opt/demo-protected/setpoint.json \
+    && chmod 0700 /opt/demo-protected
 
 WORKDIR /workspace
 COPY goldmansachs/runner.py /app/runner.py
