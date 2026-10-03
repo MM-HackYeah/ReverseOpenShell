@@ -34,6 +34,19 @@ wheels = [
 ]
 
 [[package]]
+name = "backboard-sdk"
+version = "1.5.19"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/31/b9/d6cb91ada289af004a1af6f4c5e30ddc8fddc2e1ac2e09181b1aa9732e7d/backboard_sdk-1.5.19.tar.gz", hash = "sha256:ee6a79dad1e861db37be540c683c536d8e57630a3051eb2df64f37fcccc6855c", size = 45818, upload-time = "2026-09-17T22:43:54.708Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/e8/191b039b7110517194c603bd1cb29419069ceb805ac95a8741e1699a04aa/backboard_sdk-1.5.19-py3-none-any.whl", hash = "sha256:a5ef6f824dc35fd3f77f2dc9ea19fbbdb518b180779fd79590fafab8d6e39578", size = 28262, upload-time = "2026-09-17T22:43:53.706Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -528,6 +541,7 @@ name = "reverseopenshell-mvp"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "backboard-sdk" },
     { name = "fastapi" },
     { name = "openshell" },
     { name = "pyyaml" },
@@ -542,6 +556,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "backboard-sdk", specifier = ">=1.5.19" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "openshell", specifier = ">=0.1.0" },
     { name = "pyyaml", specifier = ">=6.0.2,<7" },

@@ -50,3 +50,7 @@ Full compatibility with every agent framework, protection against all prompt inj
 ## Presentation
 
 Show a working allowed flow, an attempted unsafe call, a block or redaction, an audit entry, budget usage, and changed behavior after editing the policy. Prepare tests for evaluators to run and describe the prototype's limitations.
+
+## Current inbound-webhook demo
+
+The implemented webhook prototype uses `BACKBOARD_API_KEY` from `.env` to call TypeSafe Jev (`jev-latest`) once per request using a single `Choice` question. If deterministic policy returns `untrusted`, Jev is skipped. Otherwise the choices are `untrusted` and `read`, adding `write` only when allowed by the base policy; `read` routes to the existing `readonly` sandbox. This makes it impossible for Jev to raise the policy ceiling. Start it with `uv run --env-file .env uvicorn goldmansachs.app.main:app --reload`. `JEV_MIN_CONFIDENCE` defaults to `0.70`; lower confidence downgrades the selected tier one level. Jev errors route to `untrusted`. Audit records include classifier confidence, never the API key.

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Minimal inbound AI request control layer backed by OpenShell sandboxes"
 requires-python = ">=3.11"
 dependencies = [
+    "backboard-sdk>=1.5.19",
     "fastapi>=0.115,<1",
     "openshell>=0.1.0",
     "PyYAML>=6.0.2,<7",

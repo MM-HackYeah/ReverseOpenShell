@@ -9,7 +9,7 @@ Minimal MVP for the **Goldman Sachs AI Control Layer** challenge. The project ac
 - Classification cannot raise trust above the configured source limit.
 - Source HMAC signature; a missing or invalid secret means `untrusted`.
 - Isolated execution through `openshell sandbox exec`, a JSONL audit log, and an endpoint for reading it.
-- Optional classification through local Ollama. Deterministic rules work without a model; classifier errors lower the level to `untrusted`.
+- Optional semantic classification through Backboard TypeSafe Jev (`jev-latest`). Its `Choice` options run from `untrusted` through the maximum tier allowed by deterministic source policy. Confidence can only lower the selected tier; provider errors fail closed to `untrusted`.
 
 ## Running
 
@@ -37,7 +37,9 @@ curl -sS -X POST http://127.0.0.1:8000/hook/demo-readonly \
   --data "$BODY"
 ```
 
-Check `/docs`, `/health`, and `/events`. Set `OLLAMA_MODEL` (and optionally `OLLAMA_URL`) to enable semantic classification through local Ollama. The Python SDK connects to the active gateway selected by the OpenShell CLI.
+Check `/docs`, `/health`, and `/events`. Put `BACKBOARD_API_KEY` in the ignored `.env` file to enable Jev classification; start the API with `uv run --env-file .env uvicorn goldmansachs.app.main:app --reload`. `JEV_MODEL` defaults to `jev-latest`; `JEV_MIN_CONFIDENCE` defaults to `0.70`. Below that confidence, the selected tier is downgraded one level. If the key is absent, deterministic rules run. Do not commit or print `.env`.
+
+Jev receives the source name, authentication result, deterministic base tier, and webhook payload in one System One `Choice` request. If the base tier is `untrusted`, Jev is skipped. Otherwise its choices are `untrusted` and `read`, plus `write` only when the base tier permits it. The `read` choice routes to the existing `readonly` sandbox. A confidence below `JEV_MIN_CONFIDENCE` downgrades its choice by one tier. The audit event records the choice confidence.
 
 ## Security and limitations
 

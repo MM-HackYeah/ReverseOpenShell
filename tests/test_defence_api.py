@@ -100,6 +100,7 @@ def test_ingress_policy_denies_before_sandbox_and_quarantines_source(
         "blocked_ingress_requests": 1,
         "parser_compromises": 0,
         "invalid_signatures": 0,
+        "semantic_policy_denials": 0,
     }
 
 
@@ -202,6 +203,88 @@ def test_parser_compromise_is_quarantined_and_reported(monkeypatch, tmp_path):
     assert main.events()["metrics"]["parser_compromises"] == 1
 
 
+def test_jev_untrusted_denies_before_openshell_and_audits(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEFENCE_JEV_ENABLED", "true")
+    monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "test-secret")
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
+    monkeypatch.setattr(
+        main,
+        "classify_sensor_event",
+        async_function_returning(("untrusted", "jev", 0.96)),
+    )
+    calls = []
+    monkeypatch.setattr(
+        main,
+        "_execute_in_openshell",
+        lambda *args, **kwargs: calls.append(args) or {"status": "accepted"},
+    )
+
+    body, signature = signed_event(
+        "test-secret",
+        {
+            "action": "telemetry.read",
+            "sensor_id": "A-01",
+            "event_id": "evt-semantic-deny",
+            "vendor_document": "synthetic suspicious content",
+        },
+    )
+    response = TestClient(main.app).post(
+        "/sensor/sensor-a",
+        content=body,
+        headers={"x-hook-signature": signature},
+    )
+
+    assert response.status_code == 403
+    assert calls == []
+    event = main.events()["events"][0]
+    assert event["classifier"] == "jev"
+    assert event["semantic_tier"] == "untrusted"
+    assert event["reason"] == "semantic_policy_untrusted"
+    assert "vendor_document" not in event
+
+
+def test_jev_read_allows_existing_sensor_sandbox(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEFENCE_JEV_ENABLED", "1")
+    monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "test-secret")
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "state.sqlite3")
+    monkeypatch.setattr(
+        main,
+        "classify_sensor_event",
+        async_function_returning(("read", "jev", 0.94)),
+    )
+    calls = []
+
+    def execute(sandbox, payload, runtime_env=None):
+        calls.append(sandbox)
+        return {
+            "status": "accepted",
+            "action": payload["action"],
+            "sensor_id": payload["sensor_id"],
+            "event_id": payload["event_id"],
+            "flow_lpm": 7.25,
+        }
+
+    monkeypatch.setattr(main, "_execute_in_openshell", execute)
+    body, signature = signed_event(
+        "test-secret",
+        {
+            "action": "telemetry.read",
+            "sensor_id": "A-01",
+            "event_id": "evt-semantic-allow",
+            "vendor_document": "flow_lpm: 7.25\n",
+        },
+    )
+    response = TestClient(main.app).post(
+        "/sensor/sensor-a",
+        content=body,
+        headers={"x-hook-signature": signature},
+    )
+
+    assert response.status_code == 200
+    assert calls == ["def-sensor-a"]
+    assert response.json()["status"] == "accepted"
+
+
 def test_unquarantine_requires_operator_and_persists_reason(monkeypatch, tmp_path):
     monkeypatch.setenv("DEFENCE_SENSOR_A_SECRET", "sensor-a-secret")
     monkeypatch.setenv("DEFENCE_ADMIN_TOKEN", "operator-test-token")
@@ -275,3 +358,10 @@ def test_unquarantine_requires_operator_and_persists_reason(monkeypatch, tmp_pat
     )
     assert accepted.status_code == 200
     assert calls == ["def-sensor-a"]
+
+
+def async_function_returning(value):
+    async def result(*_args, **_kwargs):
+        return value
+
+    return result

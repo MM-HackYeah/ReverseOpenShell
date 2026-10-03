@@ -29,6 +29,7 @@ Other sources ──────────────────────
 - The central ingress policy in `policies/defence-ingress.yaml` has `default_decision: deny` and defines HMAC secrets, sandbox, and allowed actions for each source.
 - The HMAC signature is verified before authorization. An invalid signature is rejected, does not run the handler, and does not quarantine the authenticated source.
 - For the MVP, both sources may request only `telemetry.read`. A disallowed action is rejected at ingress before invoking OpenShell, recorded in the audit, and quarantines the source.
+- Optional Jev semantic gating runs only after signature verification and deterministic action authorization. For the allowed `telemetry.read` action, its System One `Choice` options are only `untrusted` and `read`; it cannot authorize an action or tier forbidden by the base policy. Low confidence or a classifier error fails closed as `untrusted`, which is denied before OpenShell and recorded without quarantining the source.
 - The handler runs through the OpenShell Python SDK in the sandbox assigned to the source.
 - The event contains `action`, `sensor_id`, `event_id`, and `vendor_document`. The parser demo deliberately uses vulnerable `yaml.unsafe_load`; never use it in a real system.
 - A fixed YAML payload attempts to read a synthetic canary, send it to a local collector, and overwrite a synthetic setpoint file.
@@ -36,6 +37,7 @@ Other sources ──────────────────────
 - Quarantine and audit are stored in local SQLite (`var/defence.db`) and therefore survive process restarts. This is still a single local file, not a shared or highly available store.
 - `POST /admin/sources/{source}/unquarantine` requires `DEFENCE_ADMIN_TOKEN` as a Bearer token and a recorded review reason; the operation is added to the audit.
 - `/events` shows the audit, quarantine state, and counters for allowed, blocked, and compromised events.
+- Jev is opt-in with `DEFENCE_JEV_ENABLED=1` and `BACKBOARD_API_KEY`. It is disabled by default so the existing exploit-containment experiment still reaches the intentionally vulnerable parser. Enable it to demonstrate semantic pre-sandbox blocking; disable it to demonstrate OpenShell post-ingress containment.
 
 ## Demo
 
@@ -76,6 +78,15 @@ export DEFENCE_ADMIN_TOKEN='local-demo-operator-token'
 export OPENSHELL_GRPC_ENDPOINT='127.0.0.1:8080'
 uv run uvicorn defence.app.main:app --port 8001
 ```
+
+To enable the optional Jev gate, put `BACKBOARD_API_KEY` in `.env` and start with:
+
+```shell
+export DEFENCE_JEV_ENABLED=1
+uv run --env-file .env uvicorn defence.app.main:app --port 8001
+```
+
+`DEFENCE_JEV_MIN_CONFIDENCE` defaults to `0.70`. A low-confidence result or classifier failure becomes `untrusted` and is denied before sandbox execution. The decision appears in `/events` under `classifier`, `classifier_confidence`, and `semantic_tier`; `semantic_policy_denials` counts these denials. No raw `vendor_document` or API key is written to the audit. Leave Jev disabled for the exploit-containment benchmark, because Jev may deny the malicious fixture before it reaches OpenShell.
 
 The script creates two sandboxes before serving traffic; it does not create a new sandbox for every event. A sandbox created before an image/policy change does not update automatically. Use new names, or recreate old ones only after confirming that they contain no state you need.
 The endpoint override is needed when the active gateway has address `host.docker.internal`, which works from containers but does not resolve on the macOS host.

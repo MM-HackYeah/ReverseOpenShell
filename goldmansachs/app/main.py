@@ -11,8 +11,8 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 
-from .classifier import classify
-from .policy import SOURCES, TIERS, verify_signature
+from .classifier import classify, classify_jev
+from .policy import verify_signature
 
 app = FastAPI(title="Inbound Sandbox for AI Agents", version="0.1.0")
 AUDIT_PATH = Path(os.getenv("AUDIT_PATH", "var/audit.jsonl"))
@@ -107,7 +107,13 @@ async def hook(source: str, request: Request) -> dict[str, Any]:
     authenticated = verify_signature(
         source, raw, request.headers.get("x-hook-signature")
     )
-    tier, classifier = classify(source, payload, authenticated)
+    if os.getenv("BACKBOARD_API_KEY"):
+        tier, classifier, confidence = await classify_jev(
+            source, payload, authenticated
+        )
+    else:
+        tier, classifier = classify(source, payload, authenticated)
+        confidence = None
     event: dict[str, Any] = {
         "id": request_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -115,6 +121,7 @@ async def hook(source: str, request: Request) -> dict[str, Any]:
         "authenticated": authenticated,
         "tier": tier,
         "classifier": classifier,
+        "classifier_confidence": confidence,
         "method": payload["method"].upper(),
         # Log only the destination host, never query parameters or request data.
         "destination": parsed_url.hostname,

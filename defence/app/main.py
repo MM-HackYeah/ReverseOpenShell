@@ -17,6 +17,8 @@ from openshell import SandboxClient
 from openshell.errors import GatewayError
 import yaml
 
+from .classifier import classify_sensor_event
+
 app = FastAPI(title="Defence Sensor Inbound Shield", version="0.1.0")
 DB_PATH = Path(os.getenv("DEFENCE_DB_PATH", "var/defence.db"))
 MAX_REQUEST_BYTES = 8_192
@@ -214,6 +216,10 @@ def events() -> dict[str, Any]:
                 event.get("reason") == "invalid_source_signature"
                 for event in recent
             ),
+            "semantic_policy_denials": sum(
+                event.get("reason") == "semantic_policy_untrusted"
+                for event in recent
+            ),
         },
         "events": recent,
     }
@@ -274,15 +280,6 @@ async def ingest_sensor(source: str, request: Request) -> dict[str, Any]:
         "action": action,
         "sandbox": sandbox,
     }
-    runtime_env = {
-        "DEMO_CANARY_PATH": "/opt/demo-protected/canary.secret",
-        "DEMO_SETPOINT_PATH": "/opt/demo-protected/setpoint.json",
-        "DEMO_EXFIL_URL": os.getenv(
-            "DEMO_EXFIL_URL", "http://host.openshell.internal:9999/collect"
-        ),
-        "DEMO_EXFIL_TOKEN": os.getenv("DEMO_EXFIL_TOKEN", ""),
-        "DEMO_ATTACK_REPORT_PATH": f"/tmp/reverseopenshell-attack-{request_id}.json",
-    }
 
     # Ingress authorization happens before sandbox execution. A validly signed
     # source cannot request actions outside its allowlist.
@@ -294,6 +291,32 @@ async def ingest_sensor(source: str, request: Request) -> dict[str, Any]:
         )
         _audit(event)
         raise HTTPException(status_code=403, detail="action not allowed; source quarantined")
+
+    if os.getenv("DEFENCE_JEV_ENABLED", "").lower() in {"1", "true", "yes"}:
+        tier, classifier, confidence = await classify_sensor_event(
+            source, action, payload
+        )
+        event.update(
+            classifier=classifier,
+            classifier_confidence=confidence,
+            semantic_tier=tier,
+        )
+        if tier != "read":
+            event.update(decision="deny", reason="semantic_policy_untrusted")
+            _audit(event)
+            raise HTTPException(status_code=403, detail="semantic policy denied event")
+    else:
+        event.update(classifier="disabled", semantic_tier="read")
+
+    runtime_env = {
+        "DEMO_CANARY_PATH": "/opt/demo-protected/canary.secret",
+        "DEMO_SETPOINT_PATH": "/opt/demo-protected/setpoint.json",
+        "DEMO_EXFIL_URL": os.getenv(
+            "DEMO_EXFIL_URL", "http://host.openshell.internal:9999/collect"
+        ),
+        "DEMO_EXFIL_TOKEN": os.getenv("DEMO_EXFIL_TOKEN", ""),
+        "DEMO_ATTACK_REPORT_PATH": f"/tmp/reverseopenshell-attack-{request_id}.json",
+    }
 
     try:
         result = _execute_in_openshell(sandbox, payload, runtime_env=runtime_env)
