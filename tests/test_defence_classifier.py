@@ -19,7 +19,7 @@ def test_defence_jev_choice_is_capped_by_allowed_action(monkeypatch):
     )
 
     assert observed["choices"] == ["untrusted", "read"]
-    assert result == ("read", "jev", 0.98)
+    assert result == ("read", "jev", 0.98, "read")
 
 
 def test_low_jev_confidence_downgrades_defence_read(monkeypatch):
@@ -35,7 +35,7 @@ def test_low_jev_confidence_downgrades_defence_read(monkeypatch):
         )
     )
 
-    assert result == ("untrusted", "jev", 0.25)
+    assert result == ("untrusted", "jev", 0.25, "read")
 
 
 def test_invalid_jev_result_fails_closed(monkeypatch):
@@ -50,7 +50,7 @@ def test_invalid_jev_result_fails_closed(monkeypatch):
         )
     )
 
-    assert result == ("untrusted", "classifier-error", None)
+    assert result == ("untrusted", "classifier-error", None, None)
 
 
 def test_action_without_base_tier_skips_jev(monkeypatch):
@@ -64,7 +64,7 @@ def test_action_without_base_tier_skips_jev(monkeypatch):
         )
     )
 
-    assert result == ("untrusted", "rules", None)
+    assert result == ("untrusted", "rules", None, None)
 
 
 def install_fake_backboard(monkeypatch, tier, confidence, observed=None):

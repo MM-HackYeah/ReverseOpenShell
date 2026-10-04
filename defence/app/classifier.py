@@ -18,17 +18,17 @@ async def classify_sensor_event(
     source: str,
     action: str,
     payload: dict[str, Any],
-) -> tuple[str, str, float | None]:
+) -> tuple[str, str, float | None, str | None]:
     """Classify an already-authorized event without exceeding its base tier."""
     base_tier = {
         "telemetry.read": "read",
         "telemetry.write": "write",
     }.get(action, "untrusted")
     if base_tier == "untrusted":
-        return "untrusted", "rules", None
+        return "untrusted", "rules", None, None
     api_key = os.getenv("BACKBOARD_API_KEY")
     if not api_key:
-        return "untrusted", "classifier-error", None
+        return "untrusted", "classifier-error", None, None
 
     allowed_tiers = TIERS[: TIER_RANK[base_tier] + 1]
     choices = {
@@ -92,7 +92,7 @@ async def classify_sensor_event(
             raise ValueError("DEFENCE_JEV_MIN_CONFIDENCE must be between 0 and 1")
         if confidence < minimum:
             tier = _lower_one_tier(tier)
-        return tier, "jev", float(confidence)
+        return tier, "jev", float(confidence), answer.get("choice")
     except Exception:
         # Fail closed without leaking provider errors or event contents.
-        return "untrusted", "classifier-error", None
+        return "untrusted", "classifier-error", None, None

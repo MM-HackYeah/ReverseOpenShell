@@ -1,5 +1,7 @@
 # Defence — MVP: ingress policy and exploit containment
 
+> **Jev showcase:** Deterministic ingress allows the signed `telemetry.read` action first. Jev then gets one last, downgrade-only `Choice`: `untrusted` or `read`. Try a benign document and a suspicious one with [`scripts/demo-defence-jev.sh`](../scripts/demo-defence-jev.sh). This demonstrates a semantic signal before sandbox execution; it does not replace OpenShell containment.
+
 ## Problem and user
 
 An operator of critical infrastructure receives data from external vendors, such as sensor events. An error or compromise of one source's handler should not provide access to secrets or stop processing for other sources.
@@ -40,6 +42,31 @@ Other sources ──────────────────────
 - Jev is opt-in with `DEFENCE_JEV_ENABLED=1` and `BACKBOARD_API_KEY`. It is disabled by default so the existing exploit-containment experiment still reaches the intentionally vulnerable parser. Enable it to demonstrate semantic pre-sandbox blocking; disable it to demonstrate OpenShell post-ingress containment.
 
 ## Demo
+
+### Highlight: Jev as the last resort
+
+Start the API with Jev enabled and run the two-case showcase:
+
+```shell
+export DEFENCE_SENSOR_A_SECRET='demo-sensor-a'
+export DEFENCE_JEV_ENABLED=1
+uv run --env-file .env uvicorn defence.app.main:app --port 8001
+```
+
+In another terminal, with the same sensor secret:
+
+```shell
+export DEFENCE_SENSOR_A_SECRET='demo-sensor-a'
+sh scripts/demo-defence-jev.sh
+```
+
+Both events have a valid HMAC and request the already-allowed `telemetry.read`. The benign YAML should be classified `read` and reach `def-sensor-a`. The second event asks, in ordinary language, for a credential to be included in a report. This text does not match the current deterministic ingress action rule; Jev can lower it to `untrusted`, in which case the API denies it before calling OpenShell. `/events` shows Jev's raw `classifier_choice`, its `classifier_confidence`, the effective `semantic_tier` after any low-confidence downgrade, and the `semantic_policy_denials` count without storing the vendor document.
+
+Record both `classifier_choice` and `semantic_tier` when presenting the result: the former is Jev's selection; the latter may also reflect the low-confidence downgrade. This is a demonstration, not a guaranteed classification or a calibrated accuracy claim. Jev confidence is not a guarantee. If the result differs on the day, show the actual result.
+
+**Live Jev observation (2026-10-04):** the benign fixture returned `read` at confidence `0.80`; the semantic-risk fixture returned `untrusted` at confidence `0.23`. Both were live classifier calls with synthetic data. Jev is probabilistic, so rerun the showcase and report the values actually returned that day.
+
+**Then show the other boundary separately:** stop the API, unset `DEFENCE_JEV_ENABLED` (or set it to `0`), restart it, and run the fixed exploit comparison below. With Jev out of the path, the signed exploit reaches the allowed parser inside OpenShell, where filesystem and egress restrictions demonstrate containment. The two demonstrations distinguish semantic early rejection from runtime sandbox containment.
 
 1. The local variant runs the same parser and payload outside OpenShell. It should read the synthetic canary, send its bytes to the local collector, and change the setpoint from `40` to `9999`.
 2. The OpenShell variant sends the exploit as an allowed, correctly signed `telemetry.read`. The parser is compromised, but the sandbox policy is expected to block reads of protected files, egress, and the setpoint write.
@@ -86,7 +113,7 @@ export DEFENCE_JEV_ENABLED=1
 uv run --env-file .env uvicorn defence.app.main:app --port 8001
 ```
 
-`DEFENCE_JEV_MIN_CONFIDENCE` defaults to `0.70`. A low-confidence result or classifier failure becomes `untrusted` and is denied before sandbox execution. The decision appears in `/events` under `classifier`, `classifier_confidence`, and `semantic_tier`; `semantic_policy_denials` counts these denials. No raw `vendor_document` or API key is written to the audit. Leave Jev disabled for the exploit-containment benchmark, because Jev may deny the malicious fixture before it reaches OpenShell.
+`DEFENCE_JEV_MIN_CONFIDENCE` defaults to `0.70`. A low-confidence result or classifier failure becomes `untrusted` and is denied before sandbox execution. The audit distinguishes Jev's raw `classifier_choice` from the effective `semantic_tier` after the confidence threshold. `/events` also records `classifier_confidence`; `semantic_policy_denials` counts semantic denials. No raw `vendor_document` or API key is written to the audit. Leave Jev disabled for the exploit-containment benchmark, because Jev may deny the malicious fixture before it reaches OpenShell.
 
 The script creates two sandboxes before serving traffic; it does not create a new sandbox for every event. A sandbox created before an image/policy change does not update automatically. Use new names, or recreate old ones only after confirming that they contain no state you need.
 The endpoint override is needed when the active gateway has address `host.docker.internal`, which works from containers but does not resolve on the macOS host.

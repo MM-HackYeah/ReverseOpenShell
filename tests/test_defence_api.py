@@ -210,7 +210,7 @@ def test_jev_untrusted_denies_before_openshell_and_audits(monkeypatch, tmp_path)
     monkeypatch.setattr(
         main,
         "classify_sensor_event",
-        async_function_returning(("untrusted", "jev", 0.96)),
+        async_function_returning(("untrusted", "jev", 0.96, "untrusted")),
     )
     calls = []
     monkeypatch.setattr(
@@ -238,6 +238,7 @@ def test_jev_untrusted_denies_before_openshell_and_audits(monkeypatch, tmp_path)
     assert calls == []
     event = main.events()["events"][0]
     assert event["classifier"] == "jev"
+    assert event["classifier_choice"] == "untrusted"
     assert event["semantic_tier"] == "untrusted"
     assert event["reason"] == "semantic_policy_untrusted"
     assert "vendor_document" not in event
@@ -250,7 +251,7 @@ def test_jev_read_allows_existing_sensor_sandbox(monkeypatch, tmp_path):
     monkeypatch.setattr(
         main,
         "classify_sensor_event",
-        async_function_returning(("read", "jev", 0.94)),
+        async_function_returning(("read", "jev", 0.94, "read")),
     )
     calls = []
 

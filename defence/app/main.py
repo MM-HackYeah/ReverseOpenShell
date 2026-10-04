@@ -293,12 +293,13 @@ async def ingest_sensor(source: str, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=403, detail="action not allowed; source quarantined")
 
     if os.getenv("DEFENCE_JEV_ENABLED", "").lower() in {"1", "true", "yes"}:
-        tier, classifier, confidence = await classify_sensor_event(
+        tier, classifier, confidence, classifier_choice = await classify_sensor_event(
             source, action, payload
         )
         event.update(
             classifier=classifier,
             classifier_confidence=confidence,
+            classifier_choice=classifier_choice,
             semantic_tier=tier,
         )
         if tier != "read":
